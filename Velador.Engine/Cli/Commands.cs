@@ -35,9 +35,73 @@ public static class Commands
 		return 0;
 	}
 
+	public const string TaskName = @"Velador\Engine";
+	const string RunKey = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+	public static string TaskXml(string program, string user) => $"""
+		<?xml version="1.0" encoding="UTF-16"?>
+		<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+		  <RegistrationInfo><Description>Velador: motor de grabación</Description></RegistrationInfo>
+		  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{Xml(user)}</UserId></LogonTrigger></Triggers>
+		  <Principals><Principal id="Author"><UserId>{Xml(user)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+		  <Settings>
+		    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+		    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+		    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+		    <StartWhenAvailable>true</StartWhenAvailable>
+		    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+		    <RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure>
+		    <Enabled>true</Enabled>
+		  </Settings>
+		  <Actions Context="Author"><Exec><Command>{Xml(program)}</Command></Exec></Actions>
+		</Task>
+
+		""";
+
+	static int InstallWindows(EnginePaths paths)
+	{
+		var program = Environment.ProcessPath!;
+		var xml = Path.Combine(paths.Home, "task.xml");
+		File.WriteAllText(xml, TaskXml(program, $@"{Environment.UserDomainName}\{Environment.UserName}"), System.Text.Encoding.Unicode);
+		Tool("schtasks.exe", "/End", "/TN", TaskName);
+		if (Tool("schtasks.exe", "/Create", "/TN", TaskName, "/XML", xml, "/F") == 0)
+		{
+			Tool("reg.exe", "delete", RunKey, "/v", "Velador", "/f");
+			Tool("schtasks.exe", "/Run", "/TN", TaskName);
+			return 0;
+		}
+		if (Tool("reg.exe", "add", RunKey, "/v", "Velador", "/t", "REG_SZ", "/d", $"\"{program}\"", "/f") != 0) return Fail("No se pudo registrar el arranque con la sesión.");
+		Process.Start(new ProcessStartInfo(program) { UseShellExecute = true })?.Dispose();
+		return 0;
+	}
+
+	static int UninstallWindows()
+	{
+		Tool("schtasks.exe", "/End", "/TN", TaskName);
+		Tool("schtasks.exe", "/Delete", "/TN", TaskName, "/F");
+		Tool("reg.exe", "delete", RunKey, "/v", "Velador", "/f");
+		return 0;
+	}
+
+	static int Tool(string name, params string[] args)
+	{
+		try
+		{
+			using var process = Process.Start(new ProcessStartInfo(name, args) { RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, UseShellExecute = false })!;
+			process.StandardOutput.ReadToEnd();
+			process.WaitForExit();
+			return process.ExitCode;
+		}
+		catch (System.ComponentModel.Win32Exception)
+		{
+			return -1;
+		}
+	}
+
 	static int Install(EnginePaths paths)
 	{
-		if (!OperatingSystem.IsMacOS()) return Fail("Por ahora el servicio sólo se instala en macOS.");
+		if (OperatingSystem.IsWindows()) return InstallWindows(paths);
+		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS y en Windows.");
 		var program = Environment.ProcessPath!;
 		var log = Path.Combine(paths.Home, "engine.log");
 		var plist = PlistPath();
@@ -67,7 +131,8 @@ public static class Commands
 
 	static int Uninstall()
 	{
-		if (!OperatingSystem.IsMacOS()) return Fail("Por ahora el servicio sólo se instala en macOS.");
+		if (OperatingSystem.IsWindows()) return UninstallWindows();
+		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS y en Windows.");
 		Launchctl("bootout", $"gui/{Uid()}/{Label}");
 		File.Delete(PlistPath());
 		Console.WriteLine("Motor desinstalado. Las grabaciones y los ajustes no se tocaron.");

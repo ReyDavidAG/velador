@@ -8,4 +8,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
   </ItemGroup>
 
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
 </Project>

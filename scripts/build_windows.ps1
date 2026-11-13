@@ -52,6 +52,13 @@ if (-not (Test-Path $model)) {
 	Move-Item "$model.part" $model
 }
 
+$faceModel = Join-Path $root 'tools\models\face_yunet.onnx'
+if (-not (Test-Path $faceModel)) {
+	Invoke-WebRequest 'https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx' -OutFile "$faceModel.part"
+	if ((Get-FileHash "$faceModel.part" -Algorithm SHA256).Hash.ToLower() -ne '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4') { Remove-Item "$faceModel.part"; throw 'La suma del modelo de caras no coincide.' }
+	Move-Item "$faceModel.part" $faceModel
+}
+
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 dotnet publish Velador.Engine -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=none -o $dist
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo publicar el motor.' }

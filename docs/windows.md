@@ -33,8 +33,10 @@ Antes de probar el seguimiento: en la app Tapo apaga el **seguimiento de movimie
 3. **Espacio:** Ajustes › Dónde se guarda: cuánto pesa un día y cuándo empieza a borrar. Bajar «Guardar hasta» a 2 días cambia la fecha de borrado.
 4. **Flechas:** con la cámara ya calibrada, «derecha» debe llevar la vista a la derecha y «arriba» hacia arriba. Antes estaban invertidas por el montaje de cabeza.
 5. **Seguir personas:** En vivo › «Seguir personas». Camina frente a la cámara a paso normal, luego rápido, y sal y vuelve a entrar por un lado. Sobre el video salen los recuadros (el morado fuerte es a quien sigue) y arriba «Siguiendo» o «Buscando hacia donde iba». Si mueves la cámara a mano, el seguimiento espera 10 s.
-6. **Personas:** al otro día, la vista Personas debe mostrar a cada quien agrupado con sus horas; un clic en la foto lleva a ese momento en la Ronda.
-7. **Pantalla completa:** el control de movimiento, la pausa y «Seguir personas» también están ahí.
+6. **Ir y regresar:** con «Seguir personas», camina a un lado hasta salir y regresa al otro. Arriba debe decir «Buscando hacia donde se fue» y, si no te encuentra en 8 s, «Regresando a la posición de inicio». Mueve la cámara a mano a otro lugar: esa será la nueva posición de inicio.
+7. **Caras:** en Personas, la portada de cada quien lleva su cara en la esquina cuando se le vio de frente.
+8. **Personas:** al otro día, la vista Personas debe mostrar a cada quien agrupado con sus horas; un clic en la foto lleva a ese momento en la Ronda.
+9. **Pantalla completa:** el control de movimiento, la pausa y «Seguir personas» también están ahí.
 
 Cifras medidas en esta PC: detección en la tarjeta gráfica (DirectML), motor 11 % y FFmpeg 16 % de un núcleo con alguien a la vista; el video para la detección llega con 1.56 s de retraso.
 

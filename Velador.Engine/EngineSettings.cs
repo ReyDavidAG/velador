@@ -12,6 +12,9 @@ public sealed class EngineSettings
 	public bool KeepAwake { get; set; } = true;
 	public List<Camera> Cameras { get; set; } = [];
 
+	[System.Text.Json.Serialization.JsonIgnore]
+	public int Revision { get; set; }
+
 	static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
 	public static EngineSettings Load(EnginePaths paths)
@@ -57,8 +60,7 @@ public sealed class EnginePaths
 		return Environment.GetEnvironmentVariable("VELADOR_WEB") ?? (Directory.Exists(beside) ? beside : null);
 	}
 
-	public string Recordings(EngineSettings settings) =>
-		settings.RecordingsDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Velador");
+	public static string DefaultRecordings => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Velador");
 
 	public static EnginePaths Resolve() =>
 		new(Environment.GetEnvironmentVariable("VELADOR_HOME")

@@ -4,7 +4,7 @@ namespace Velador.Engine.MediaMtx;
 
 public sealed class MediaCache
 {
-	const int MaxFiles = 16;
+	const int MaxFiles = 64;
 
 	readonly string _dir;
 	readonly MediaMtxClient _media;

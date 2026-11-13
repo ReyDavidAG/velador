@@ -31,6 +31,6 @@ Copy-Item (Join-Path $root 'web') (Join-Path $dist 'web') -Recurse
 
 npm ci --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) { throw 'npm ci falló.' }
-npm run desktop:build
+npx tauri build --config desktop/src-tauri/tauri.windows.conf.json
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo compilar la app.' }
 Get-ChildItem (Join-Path $root 'desktop\src-tauri\target\release\bundle\nsis\*.exe') | ForEach-Object { Write-Host "Instalador: $($_.FullName)" }

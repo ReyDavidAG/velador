@@ -2,6 +2,7 @@ using Velador.Core;
 using Velador.Engine;
 using Velador.Engine.Api;
 using Velador.Engine.MediaMtx;
+using Velador.Engine.Onvif;
 using Velador.Engine.Sqlite;
 
 namespace Velador.Tests;
@@ -200,5 +201,54 @@ public class RecordingStoreTests : IDisposable
 		store.Delete(segment);
 		Assert.False(File.Exists(file));
 		File.Delete(outside);
+	}
+}
+
+public class OnvifTests
+{
+	[Fact]
+	public void The_password_digest_follows_ws_security()
+	{
+		var nonce = Convert.FromBase64String("LKqI6G/AikKCQrN0zqZFlg==");
+		var envelope = OnvifClient.Envelope("admin", "userpassword", "<x/>", nonce, DateTimeOffset.Parse("2010-09-16T07:50:45Z"));
+
+		Assert.Contains(">tuOSpGlFlIXsozq4HFNeeGeFLEI=</Password>", envelope);
+		Assert.Contains("<Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">2010-09-16T07:50:45Z</Created>", envelope);
+		Assert.DoesNotContain("userpassword", envelope);
+	}
+
+	const string Pull = """
+		<e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope" xmlns:tev="http://www.onvif.org/ver10/events/wsdl" xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2" xmlns:tns1="http://www.onvif.org/ver10/topics" xmlns:tt="http://www.onvif.org/ver10/schema"><e:Body><tev:PullMessagesResponse>
+		<wsnt:NotificationMessage><wsnt:Topic Dialect="x">tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic><wsnt:Message><tt:Message UtcTime="2026-11-13T03:00:00Z" PropertyOperation="Changed"><tt:Data><tt:SimpleItem Name="IsMotion" Value="true"/></tt:Data></tt:Message></wsnt:Message></wsnt:NotificationMessage>
+		<wsnt:NotificationMessage><wsnt:Topic Dialect="x">tns1:RuleEngine/PeopleDetector/People</wsnt:Topic><wsnt:Message><tt:Message><tt:Data><tt:SimpleItem Name="IsPeople" Value="false"/></tt:Data></tt:Message></wsnt:Message></wsnt:NotificationMessage>
+		<wsnt:NotificationMessage><wsnt:Topic Dialect="x">tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic></wsnt:NotificationMessage>
+		<wsnt:NotificationMessage><wsnt:Topic Dialect="x">tns1:Device/Trigger/Relay</wsnt:Topic></wsnt:NotificationMessage>
+		</tev:PullMessagesResponse></e:Body></e:Envelope>
+		""";
+
+	[Fact]
+	public void Motion_and_person_signals_are_read_and_unknown_topics_ignored()
+	{
+		Assert.Equal(
+			[new CameraSignal(EventKind.Motion, true), new CameraSignal(EventKind.Person, false), new CameraSignal(EventKind.Motion, true)],
+			OnvifEvents.Parse(Pull));
+		Assert.Empty(OnvifEvents.Parse("not xml"));
+	}
+
+	[Fact]
+	public void One_open_event_per_kind_and_they_show_in_the_window()
+	{
+		using var db = new EngineDatabase(":memory:");
+		db.OpenEvent("entrada", EventKind.Motion, 1000);
+		db.OpenEvent("entrada", EventKind.Motion, 2000);
+		db.OpenEvent("entrada", EventKind.Person, 2500);
+		db.CloseEvent("entrada", EventKind.Motion, 1200);
+
+		var events = db.EventsIn("entrada", new TimeRange(0, 10_000));
+		Assert.Equal(2, events.Count);
+		Assert.Equal((1000L, 2000L, EventKind.Motion), (events[0].StartMs, events[0].EndMs!.Value, events[0].Kind));
+		Assert.Null(events[1].EndMs);
+		db.CloseEventsOlderThan("entrada", 3000, 9000);
+		Assert.Equal(9000, db.EventsIn("entrada", new TimeRange(0, 10_000))[1].EndMs);
 	}
 }

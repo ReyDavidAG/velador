@@ -157,7 +157,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 - [x] Continuidad: vigía, latido, clasificación de cortes y no dormir, con pruebas. Falta el aviso del sistema, la tapa y el cierre de sesión de la matriz, y detectar contraseña rechazada (hoy se ve como «cámara»).
 - [x] Huecos y estado en SQLite. Los tramos salen de la lista de MediaMTX, que ya funde segmentos contiguos: no hizo falta tabla de segmentos ni avisos de segmento.
 - [x] API con sesión: `summary`, `rounds/{date}`, `media`, `live`.
-- [ ] API: `cameras` (alta y edición), `events`, `clips`, `settings`, `ptz`. Contrato en `docs/api.md`.
+- [x] API: `ptz` (posición y giro relativo) y sucesos dentro de la ronda.
+- [ ] API: `cameras` (alta y edición desde la app), `clips`, `settings`. Contrato en `docs/api.md`.
 - [ ] Descubrimiento ONVIF, alta con IP a mano, errores de cuenta de cámara; la cámara se identifica por MAC para sobrevivir a un cambio de IP.
 - [ ] Miniaturas desde `stream2`.
 - [x] Retención por días y por disco, con piso de espacio libre; nunca borra el archivo en curso ni lo que cubre un recorte.
@@ -167,7 +168,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 ### 3 · Web
 
 - [x] En vivo por WebRTC y Ronda (video por rango, arrastre, zoom, saltar huecos, velocidad) en `web/` contra la API real, con las tipografías empaquetadas.
-- [ ] PTZ en vivo, recorte, vista previa al pasar el cursor (necesita miniaturas) y sucesos en la ronda.
+- [x] PTZ en En vivo (botones y flechas del teclado) y sucesos marcados y listados en la Ronda.
+- [ ] Recorte y vista previa al pasar el cursor (necesita miniaturas).
 - [ ] Recortes, Cámaras, Continuidad, Ajustes y Bienvenida (con el permiso de Red local de macOS).
 - [ ] Calendario para ir más allá de la última semana; pausar la guardia; borrar un día o un tramo.
 - [ ] Todos los estados de la guardia, no sólo el feliz.
@@ -184,7 +186,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 
 ### 5 · Sucesos y avisos
 
-- [ ] Vista de Sucesos con los eventos de la cámara; avisos del sistema.
+- [x] El motor se suscribe a los eventos de la cámara por ONVIF y los guarda. Sin comprobar con un evento real: la cámara no emitió ninguno durante la prueba.
+- [ ] Vista de Sucesos y aviso del sistema por persona.
 - [ ] Opcional: aviso al celular por ntfy (sale de la red: sólo texto, sin imagen; se puede apuntar a un servidor propio).
 
 ### 6 · Más allá

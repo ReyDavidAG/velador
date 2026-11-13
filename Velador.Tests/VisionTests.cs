@@ -202,3 +202,28 @@ public class VisionPrimitiveTests
 		Assert.Equal((0.4, -0.2), PtzOrientation.ToCamera(0.4, -0.2, 0));
 	}
 }
+
+public class PeopleGroupingTests
+{
+	[Fact]
+	public void Grouping_by_the_group_average_keeps_one_person_together()
+	{
+		static float[] Look(double red, double blue) => Appearance.Describe(Enumerable.Range(0, 20 * 40).SelectMany(i => i < 400 ? new[] { (byte)(blue * 255), (byte)40, (byte)(red * 255) } : new[] { (byte)120, (byte)60, (byte)20 }).ToArray(), 20, 40);
+		var looks = new[] { Look(0.8, 0.1), Look(0.1, 0.8), Look(0.75, 0.15), Look(0.15, 0.75), Look(0.82, 0.08) };
+
+		var groups = PeopleGrouping.Cluster(looks);
+
+		Assert.Equal([[0, 2, 4], [1, 3]], groups);
+	}
+
+	[Fact]
+	public void A_png_comes_back_with_the_same_pixels()
+	{
+		var bgr = Enumerable.Range(0, 6 * 4 * 3).Select(i => (byte)(i * 7)).ToArray();
+
+		var (w, h, back) = Png.ToBgr(Png.FromBgr(bgr, 6, 4));
+
+		Assert.Equal((6, 4), (w, h));
+		Assert.Equal(bgr, back);
+	}
+}

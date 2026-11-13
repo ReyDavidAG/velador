@@ -101,6 +101,7 @@ public static class VisionEndpoints
 			p.Id,
 			firstMs = p.FirstMs,
 			lastMs = p.LastMs,
+			coverId = p.Sightings.MaxBy(s => s.Score)!.Id,
 			sightings = p.Sightings.Select(s => new { s.Id, startMs = s.StartMs, endMs = s.EndMs }),
 		}));
 	}

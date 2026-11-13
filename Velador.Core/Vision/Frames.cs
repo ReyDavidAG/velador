@@ -167,6 +167,36 @@ public static class Appearance
 
 public static class Png
 {
+	public static (int Width, int Height, byte[] Bgr) ToBgr(byte[] png)
+	{
+		static int Int(byte[] b, int at) => (b[at] << 24) | (b[at + 1] << 16) | (b[at + 2] << 8) | b[at + 3];
+		var width = Int(png, 16);
+		var height = Int(png, 20);
+		using var idat = new MemoryStream();
+		for (var at = 8; at + 8 <= png.Length;)
+		{
+			var length = Int(png, at);
+			if (png[at + 4] == 'I' && png[at + 5] == 'D' && png[at + 6] == 'A' && png[at + 7] == 'T') idat.Write(png, at + 8, length);
+			at += 12 + length;
+		}
+		idat.Position = 0;
+		using var z = new ZLibStream(idat, CompressionMode.Decompress);
+		using var raw = new MemoryStream();
+		z.CopyTo(raw);
+		var data = raw.GetBuffer();
+		var bgr = new byte[width * height * 3];
+		for (var y = 0; y < height; y++)
+			for (var x = 0; x < width; x++)
+			{
+				var s = y * (width * 3 + 1) + 1 + x * 3;
+				var t = (y * width + x) * 3;
+				bgr[t] = data[s + 2];
+				bgr[t + 1] = data[s + 1];
+				bgr[t + 2] = data[s];
+			}
+		return (width, height, bgr);
+	}
+
 	static readonly uint[] Table = Enumerable.Range(0, 256).Select(n =>
 	{
 		var c = (uint)n;
@@ -230,7 +260,34 @@ public static class Png
 
 public static class PeopleGrouping
 {
-	public const double SameLook = 0.82;
+	public const double SameLook = 0.70;
+
+	public static float[] Blend(float[] mean, int count, float[] next)
+	{
+		var blended = new float[mean.Length];
+		for (var i = 0; i < mean.Length; i++) blended[i] = (mean[i] * count + next[i]) / (count + 1);
+		return blended;
+	}
+
+	public static List<List<int>> Cluster(IReadOnlyList<float[]> descriptors, double threshold = SameLook)
+	{
+		var groups = new List<(float[] Mean, List<int> Members)>();
+		for (var i = 0; i < descriptors.Count; i++)
+		{
+			var best = -1;
+			var bestScore = threshold;
+			for (var g = 0; g < groups.Count; g++)
+			{
+				var score = Appearance.Similarity(descriptors[i], groups[g].Mean);
+				if (score < bestScore) continue;
+				bestScore = score;
+				best = g;
+			}
+			if (best < 0) groups.Add((descriptors[i], [i]));
+			else groups[best] = (Blend(groups[best].Mean, groups[best].Members.Count, descriptors[i]), [.. groups[best].Members, i]);
+		}
+		return groups.Select(g => g.Members).ToList();
+	}
 
 	public static long? Match(float[] descriptor, IEnumerable<(long GroupId, float[] Descriptor)> known, double threshold = SameLook)
 	{

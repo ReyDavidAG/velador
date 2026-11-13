@@ -140,6 +140,7 @@ public sealed class VisionService(
 					_cameras.TryRemove(gone, out _);
 				}
 				Sweep();
+				if (!_regrouped) Regroup();
 				await Task.Delay(TimeSpan.FromSeconds(5), ct);
 			}
 		}
@@ -147,6 +148,33 @@ public sealed class VisionService(
 	}
 
 	long _sweptMs;
+	bool _regrouped;
+
+	void Regroup()
+	{
+		_regrouped = true;
+		foreach (var day in database.SightingsToRegroup().GroupBy(s => (s.CameraId, s.Day)))
+		{
+			var described = new List<(EngineDatabase.StoredSighting, float[])>();
+			foreach (var s in day)
+			{
+				try
+				{
+					var descriptor = s.Descriptor;
+					if (descriptor is null)
+					{
+						var (w, h, bgr) = Png.ToBgr(File.ReadAllBytes(s.File));
+						descriptor = Appearance.Describe(bgr, w, h);
+					}
+					described.Add((s, descriptor));
+				}
+				catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or IndexOutOfRangeException) { }
+			}
+			if (described.Count == 0) continue;
+			database.Regroup(day.Key.CameraId, day.Key.Day, described, PeopleGrouping.Cluster(described.Select(d => d.Item2).ToList()));
+			log.LogInformation("Regrouped {Count} sightings of {Day}", described.Count, day.Key.Day);
+		}
+	}
 
 	void Sweep()
 	{
@@ -310,7 +338,7 @@ public sealed class VisionService(
 		if (best.TryGetValue(track.Id, out var known) && known.Quality * 1.1 >= quality) return;
 		var (x, y, w, h) = frame.PixelRect(box, 0.08);
 		if (w < 24 || h < 48) return;
-		best[track.Id] = new Candidate { Crop = frame.Crop(x, y, w, h), W = w, H = h, Quality = quality, Score = track.Score };
+		best[track.Id] = new Candidate { Crop = frame.Crop(x, y, w, h), W = w, H = h, Quality = quality, Score = quality };
 	}
 
 	void Save(Camera camera, Candidate c, long firstMs, long lastMs)

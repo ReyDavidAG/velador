@@ -52,7 +52,7 @@ app.UseSession(session);
 if (app.Environment.WebRootPath is not null)
 {
 	app.UseDefaultFiles();
-	app.UseStaticFiles();
+	app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache" });
 }
 app.MapEngine();
 app.Run();

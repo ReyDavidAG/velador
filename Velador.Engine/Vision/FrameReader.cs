@@ -8,16 +8,18 @@ public sealed class FrameReader : IDisposable
 	public const int Width = 1280;
 	public const int Height = 720;
 	public const int Fps = 10;
+	const int FrameBytes = Width * Height * 3 / 2;
 
 	readonly Process _process;
-	readonly byte[][] _ring = [new byte[Width * Height * 3], new byte[Width * Height * 3], new byte[Width * Height * 3]];
+	readonly byte[][] _ring = [new byte[FrameBytes], new byte[FrameBytes], new byte[FrameBytes]];
+	readonly byte[] _bgr = new byte[Width * Height * 3];
 	readonly Lock _lock = new();
 	readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	readonly SemaphoreSlim _signal = new(0, 1);
 	int _latest = -1;
 	int _busy = -1;
 	long _latestMs;
 	long _sequence;
-	SemaphoreSlim _signal = new(0, 1);
 
 	public long Frames => Interlocked.Read(ref _sequence);
 	public Task Ended => _ended.Task;
@@ -28,7 +30,7 @@ public sealed class FrameReader : IDisposable
 	public static FrameReader Start(string ffmpeg, string url, int rotation, TimeProvider time)
 	{
 		var filter = $"fps={Fps},scale={Width}:{Height}{(rotation == 180 ? ",hflip,vflip" : "")}";
-		var info = new ProcessStartInfo(ffmpeg, ["-hide_banner", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "200000", "-analyzeduration", "500000", "-threads", "1", "-max_delay", "0", "-i", url, "-an", "-vf", filter, "-pix_fmt", "bgr24", "-f", "rawvideo", "pipe:1"])
+		var info = new ProcessStartInfo(ffmpeg, ["-hide_banner", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "200000", "-analyzeduration", "500000", "-threads", "1", "-max_delay", "0", "-i", url, "-an", "-vf", filter, "-pix_fmt", "yuv420p", "-f", "rawvideo", "pipe:1"])
 		{
 			UseShellExecute = false,
 			CreateNoWindow = true,
@@ -47,10 +49,18 @@ public sealed class FrameReader : IDisposable
 		return reader;
 	}
 
+	void Wake()
+	{
+		try
+		{
+			if (_signal.CurrentCount == 0) _signal.Release();
+		}
+		catch (Exception e) when (e is SemaphoreFullException or ObjectDisposedException) { }
+	}
+
 	void Pump(TimeProvider time)
 	{
 		var stream = _process.StandardOutput.BaseStream;
-		var size = Width * Height * 3;
 		try
 		{
 			while (true)
@@ -59,9 +69,9 @@ public sealed class FrameReader : IDisposable
 				lock (_lock) slot = Enumerable.Range(0, 3).First(i => i != _busy && i != _latest);
 				var buffer = _ring[slot];
 				var read = 0;
-				while (read < size)
+				while (read < FrameBytes)
 				{
-					var n = stream.Read(buffer, read, size - read);
+					var n = stream.Read(buffer, read, FrameBytes - read);
 					if (n == 0) return;
 					read += n;
 				}
@@ -71,18 +81,14 @@ public sealed class FrameReader : IDisposable
 					_latestMs = time.GetUtcNow().ToUnixTimeMilliseconds();
 				}
 				Interlocked.Increment(ref _sequence);
-				if (_signal.CurrentCount == 0) _signal.Release();
+				Wake();
 			}
 		}
 		catch (Exception e) when (e is IOException or ObjectDisposedException or InvalidOperationException) { }
 		finally
 		{
 			_ended.TrySetResult();
-			try
-			{
-				if (_signal.CurrentCount == 0) _signal.Release();
-			}
-			catch (ObjectDisposedException) { }
+			Wake();
 		}
 	}
 
@@ -96,7 +102,7 @@ public sealed class FrameReader : IDisposable
 				{
 					_busy = _latest;
 					_latest = -1;
-					return new FrameLease(this, new BgrFrame(_ring[_busy], Width, Height, _latestMs));
+					return new FrameLease(this, _ring[_busy], _latestMs);
 				}
 			}
 			if (_ended.Task.IsCompleted) return null;
@@ -120,9 +126,20 @@ public sealed class FrameReader : IDisposable
 		_process.Dispose();
 	}
 
-	public sealed class FrameLease(FrameReader owner, BgrFrame frame) : IDisposable
+	public sealed class FrameLease(FrameReader owner, byte[] yuv, long capturedMs) : IDisposable
 	{
-		public BgrFrame Frame { get; } = frame;
+		BgrFrame? _frame;
+
+		public long CapturedMs { get; } = capturedMs;
+
+		public BgrFrame Frame => _frame ??= Convert();
+
+		BgrFrame Convert()
+		{
+			Yuv.ToBgr(yuv, Width, Height, owner._bgr);
+			return new BgrFrame(owner._bgr, Width, Height, CapturedMs);
+		}
+
 		public void Dispose() => owner.Release();
 	}
 }

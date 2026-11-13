@@ -179,10 +179,10 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 ### 4 · Escritorio
 
 - [x] Tauri 2 para macOS (aarch64): ventana con candado de navegación, página de respaldo, bandeja con el estado, avisos de hueco y de regreso, inicio con la sesión. Instalador `scripts/install_macos.sh`.
-- [ ] Lo mismo para Windows (x64): tarea de inicio de sesión, instalador y prueba en un equipo real.
+- [x] Lo mismo para Windows (x64): tarea de inicio de sesión, instalador y prueba en un equipo real (2026-11-13).
 - [ ] El instalador copia motor, MediaMTX y FFmpeg a `<datos>/engine/<versión>/` y el LaunchAgent o la tarea apuntan ahí: actualizar es detener, cambiar el puntero y arrancar. En Windows es tarea de inicio de sesión, no servicio (necesita el Credential Manager del usuario).
 - [ ] Firma: ad-hoc mientras cada quien compile; Developer ID, notarización y firma de los binarios anidados antes de publicar ejecutables.
-- [ ] `THIRD_PARTY_NOTICES.md`: MIT de MediaMTX y LGPL de FFmpeg (binario sin modificar, enlace a su fuente).
+- [x] `THIRD_PARTY_NOTICES.md`: MIT de MediaMTX, LGPL de FFmpeg (binario sin modificar, enlace a su fuente), Apache 2.0 de YOLOX y ONNX Runtime.
 - [ ] CI: `dotnet test`, `cargo fmt/clippy/test`, ESLint y Prettier.
 
 ### 5 · Sucesos y avisos
@@ -201,33 +201,35 @@ Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
 
 **Pausar la grabación.**
 
-- [ ] `POST /api/cameras/{id}/recording` con `{paused, minutes?}`. El motor apaga `record` de esa ruta por la API de MediaMTX (probado: el vivo no se corta, el archivo se cierra y al reanudar empieza otro). Se guarda en `config.json` para que sobreviva a un reinicio, y la configuración de MediaMTX la respeta al arrancar.
-- [ ] Hueco con causa `paused` abierto al pausar y cerrado al reanudar; el vigía no lo cierra ni abre otro mientras dure.
-- [ ] «Reanudar en 15 min, 1 h o a mano». Botón en En vivo (también en pantalla completa) y en la bandeja.
+- [x] `POST /api/cameras/{id}/recording` con `{paused, minutes?}`. El motor apaga `record` de esa ruta por la API de MediaMTX (probado: el vivo no se corta, el archivo se cierra y al reanudar empieza otro). Se guarda en `config.json` para que sobreviva a un reinicio, y la configuración de MediaMTX la respeta al arrancar.
+- [x] Hueco con causa `paused` abierto al pausar y cerrado al reanudar; el vigía no lo cierra ni abre otro mientras dure.
+- [x] «Reanudar en 15 min, 1 h o a mano». Botón en En vivo (también en pantalla completa) y en la bandeja.
 
 **Espacio y borrado.** Ya existe «Guardar hasta N días» y «Sin pasar de N %». Se agrega:
 
-- [ ] Cuánto se graba por día (medido de las últimas 24 h), cuántos días caben con los límites actuales, desde cuándo hay grabación y qué día se borra después.
+- [x] Cuánto se graba por día (medido de las últimas 24 h), cuántos días caben con los límites actuales, desde cuándo hay grabación y qué día se borra después.
 
 **Detección propia de personas.**
 
-- [ ] FFmpeg (LGPL, compilación de BtbN fijada con suma) decodifica `stream2` desde MediaMTX a 10 cuadros por segundo; nunca toca el 1080p ni la grabación.
-- [ ] YOLOX-tiny (Apache 2.0) en ONNX Runtime (MIT), en CPU. Sólo la clase persona.
-- [ ] Sucesos `person` propios junto a los de la cámara; el aviso del sistema ya existente los toma.
-- [ ] Se puede apagar en Ajustes; sin FFmpeg o sin modelo, se dice y no se detecta.
+- [x] FFmpeg (LGPL, compilación de BtbN fijada con suma) decodifica `stream2` desde MediaMTX a 10 cuadros por segundo; nunca toca el 1080p ni la grabación.
+- [x] YOLOX-tiny (Apache 2.0) en ONNX Runtime (MIT), en CPU. Sólo la clase persona.
+- [x] Sucesos `person` propios junto a los de la cámara; el aviso del sistema ya existente los toma.
+- [x] Se puede apagar en Ajustes; sin FFmpeg o sin modelo, se dice y no se detecta.
 
 **Seguimiento con predicción.**
 
-- [ ] Rastreador en `Velador.Core` (puro, con pruebas): filtro de Kalman de velocidad constante y asociación por IoU en dos pasadas (estilo ByteTrack). Estima posición y velocidad de cada persona.
-- [ ] Control de la cámara: `ContinuousMove` de ONVIF con `Timeout` corto (si el motor muere, la cámara se detiene sola) y `Stop`. Apunta adonde estará la persona tras el retraso medido del video, con zona muerta al centro y velocidad limitada. Si la cámara no acepta movimiento continuo, pasos relativos.
-- [ ] Interruptor «Seguir personas» en En vivo y pantalla completa; al mover a mano se suspende 10 s. Hay que apagar el seguimiento de la app Tapo para que no compitan.
-- [ ] Recuadros de las personas sobre el vivo.
+- [x] Rastreador en `Velador.Core` (puro, con pruebas): filtro de Kalman de velocidad constante y asociación por IoU en dos pasadas (estilo ByteTrack). Estima posición y velocidad de cada persona.
+- [x] Control de la cámara: `ContinuousMove` de ONVIF con `Timeout` corto (si el motor muere, la cámara se detiene sola) y `Stop`. Apunta adonde estará la persona tras el retraso medido del video, con zona muerta al centro y velocidad limitada. Si la cámara no acepta movimiento continuo, pasos relativos.
+- [x] Interruptor «Seguir personas» en En vivo y pantalla completa; al mover a mano se suspende 10 s. Hay que apagar el seguimiento de la app Tapo para que no compitan.
+- [x] Recuadros de las personas sobre el vivo.
 
 **Fotos de personas.**
 
-- [ ] De cada persona seguida se guarda la mejor foto (cuerpo completo, la más grande y nítida) en PNG, junto a su hora.
-- [ ] Se agrupan por parecido de apariencia (color de ropa por zonas del cuerpo). Sirve dentro del mismo día; no es reconocimiento facial y no promete identificar a nadie.
-- [ ] Vista «Personas»: cada grupo con sus fotos y las horas en que sale; un clic lleva a ese momento en la Ronda. Se borran con la misma retención que el video.
+- [x] De cada persona seguida se guarda la mejor foto (cuerpo completo, la más grande y nítida) en PNG, junto a su hora.
+- [x] Se agrupan por parecido de apariencia (color de ropa por zonas del cuerpo). Sirve dentro del mismo día; no es reconocimiento facial y no promete identificar a nadie.
+- [x] Vista «Personas»: cada grupo con sus fotos y las horas en que sale; un clic lleva a ese momento en la Ronda. Se borran con la misma retención que el video.
+
+**Lo que se aprendió al construirla.** El video para la detección llega con ~1.5 s de retraso; seguir la posición en la imagen hacía oscilar la cámara. Por eso el control estima la posición de la persona en el mundo y usa un predictor de Smith. El seguimiento propio de la cámara probablemente sufre lo mismo con menos retraso.
 
 **Límites honestos.** Si alguien cruza más rápido de lo que gira el motor de la cámara, ningún programa lo alcanza; la predicción reduce cuánto se le pierde. Detectar en CPU cuesta unos puntos de un núcleo; se mide y se dice.
 
@@ -243,7 +245,7 @@ Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.
 
 ## Fuera de la primera versión
 
-Relevo en paralelo, detección de personas con CPU, selector de calidad en vivo, velocidad 60×, respaldo HLS.
+Relevo en paralelo, selector de calidad en vivo, velocidad 60×, respaldo HLS.
 
 ## Riesgos
 

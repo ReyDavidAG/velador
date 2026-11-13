@@ -6,17 +6,25 @@
 
 - **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
 - **Windows: instalado y grabando en la PC con la cámara (2026-11-13).** Compila ahí (96 pruebas del motor, 15 de la app). Corregidas las consolas que se abrían solas y la reinstalación encima. Falta recorrer Ronda con sonido, recortes, disco externo y controles Tapo en WebView2. Detalle en `docs/windows.md`.
-- **Mover la cámara manteniendo presionado** (botón o flecha): avanza paso a paso sin soltar. En pantalla completa hay control de movimiento sobre el video, doble clic entra y sale, y los controles y el cursor se esconden tras 3 s quietos. Sin probar a ojo en la ventana.
+- **Mover la cámara manteniendo presionado** (botón o flecha): avanza paso a paso sin soltar. En pantalla completa hay control de movimiento sobre el video, doble clic entra y sale, y los controles y el cursor se esconden tras 3 s quietos. Probado en Edge (mismo motor que WebView2) con la cámara real.
+- **Fase 7 (rama `feature/guard-plus`), hecha el 2026-11-13 en la PC:**
+  - **Pausar la grabación** desde En vivo (también en pantalla completa) y la bandeja: 15 min, 1 h, 4 h o hasta reanudar. Se apaga `record` por la API de MediaMTX sin cortar el vivo; queda un hueco `paused` y sobrevive a reinicios. Probado con la cámara: 60 s exactos y se reanudó sola.
+  - **Espacio:** Ajustes dice cuánto pesa un día (medido: unos 15–16 GB con esta cámara), cuántos días caben, desde cuándo hay grabación y cuándo empieza a borrar. Con el disco de la PC caben unos 10–11 días de los 14 pedidos.
+  - **Detección propia de personas:** FFmpeg (LGPL) lee `stream2` de MediaMTX por RTSP en `127.0.0.1` y YOLOX-tiny corre en ONNX Runtime; en Windows en la GPU con DirectML (1.6 ms de CPU por cuadro contra 198 ms en CPU). 3 cuadros por segundo sin nadie, 10 con alguien a la vista. Medido: motor 11 % y FFmpeg 16 % de un núcleo detectando a 10 cps. Genera sucesos `person` propios.
+  - **Seguimiento con predicción:** rastreador Kalman + asociación tipo ByteTrack; el control estima dónde camina la persona en el mundo (imagen + giro conocido de la cámara) y apunta adonde estará tras el retraso (predictor de Smith); si se sale de la imagen sigue su trayectoria 2.5 s y la retoma si reaparece cerca. Calibración automática medida con la cámara: gira 0.86 anchos de imagen por segundo, el video llega con 1.56 s de retraso, el pan estaba invertido para las flechas (montaje de cabeza) y ahora se corrige solo. En simulación con esos datos: a paso lento 100 % a la vista (sin predicción 44 %), a paso normal 85 % (51 %), rápido 53 % (34 %). **Sin probar con una persona caminando y el seguimiento encendido.**
+  - **Personas:** foto de la mejor toma de cada persona y agrupación por el promedio de apariencia (color de ropa). Con las fotos reales de hoy agrupó bien a las dos personas. No es reconocimiento facial.
+  - **Corregido:** el motor servía la interfaz sin `Cache-Control` y WebView2 mostraba versiones viejas; el instalador ahora detiene el motor (y espera a FFmpeg) antes de reemplazarlo.
 - **Hasta 3 redes por cámara: hecho, sin probar el cambio físico de red.** Cada red donde Velador ve la cámara queda guardada (se reconoce por el router). Al cambiar de red usa la dirección recordada, y si no hay, la busca por número de serie. Se ven y se olvidan en Cámaras. En macOS el nombre sale como «Red 192.168.1.1» porque el sistema no entrega el nombre del WiFi a un servicio.
 - **Luz blanca, modo de noche, voltear la imagen y WiFi de la cámara: hecho, por el protocolo privado de Tapo.** El motor lo habla por sí mismo (SPAKE2+ sobre P-256 y AES-CCM, portado de `pytapo` y verificado con sus vectores; el protocolo anterior queda como respaldo). Probado con la cámara real: leer estado, encender y apagar la luz, y listar redes. **Sin probar:** cambiar el modo de noche, voltear la imagen y, sobre todo, cambiar la cámara de red (no se ejecutó para no dejarla desconectada). Usa la contraseña de la cuenta Tapo; si no se da aparte, prueba con la de la cuenta de cámara.
 - **Cámara con IP cambiante: hecho.** El motor la reencuentra por su número de serie (probado apuntándolo a una dirección equivocada).
 
 ## Qué falta
 
-1. Windows: seguir `docs/windows.md` en la PC.
-2. Probar con uso real: reposo del equipo, corte del WiFi de la cámara, arranque tras reiniciar la Mac, avisos del sistema y el evento de persona.
-3. Identificar la cámara por MAC, causa propia para contraseña rechazada, y firma con Developer ID antes de repartir ejecutables.
-4. Acceso desde el celular por Tailscale y motor en un equipo siempre prendido (fase 6).
+1. Pruebas en la PC con la cámara (lista en `docs/windows.md`): seguimiento con alguien caminando, pausa desde la bandeja, Personas tras un día de uso, Ronda con sonido, recortes, disco externo y controles Tapo en WebView2.
+2. macOS: compilar y probar la fase 7 (FFmpeg del sistema con `brew install ffmpeg`, detección en CPU).
+3. Probar con uso real: reposo del equipo, corte del WiFi de la cámara, arranque tras reiniciar la Mac, avisos del sistema y el evento de persona.
+4. Identificar la cámara por MAC, causa propia para contraseña rechazada, y firma con Developer ID antes de repartir ejecutables.
+5. Acceso desde el celular por Tailscale y motor en un equipo siempre prendido (fase 6).
 
 ## Hecho
 

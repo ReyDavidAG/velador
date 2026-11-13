@@ -25,7 +25,7 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	{
 		while (!ct.IsCancellationRequested)
 		{
-			if (settings.Cameras.Count > 0 && !IsRunning() && await client.PathsAsync(ct) is null) Start();
+			if (settings.Cameras.Count > 0 && !IsRunning() && await client.PathsAsync(ct) is null && !ct.IsCancellationRequested) Start();
 			await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}

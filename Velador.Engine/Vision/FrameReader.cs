@@ -5,8 +5,8 @@ namespace Velador.Engine.Vision;
 
 public sealed class FrameReader : IDisposable
 {
-	public const int Width = 960;
-	public const int Height = 540;
+	public const int Width = 1280;
+	public const int Height = 720;
 	public const int Fps = 10;
 
 	readonly Process _process;
@@ -28,7 +28,7 @@ public sealed class FrameReader : IDisposable
 	public static FrameReader Start(string ffmpeg, string url, int rotation, TimeProvider time)
 	{
 		var filter = $"fps={Fps},scale={Width}:{Height}{(rotation == 180 ? ",hflip,vflip" : "")}";
-		var info = new ProcessStartInfo(ffmpeg, ["-hide_banner", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "200000", "-analyzeduration", "500000", "-i", url, "-an", "-vf", filter, "-pix_fmt", "bgr24", "-f", "rawvideo", "pipe:1"])
+		var info = new ProcessStartInfo(ffmpeg, ["-hide_banner", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "200000", "-analyzeduration", "500000", "-threads", "1", "-max_delay", "0", "-i", url, "-an", "-vf", filter, "-pix_fmt", "bgr24", "-f", "rawvideo", "pipe:1"])
 		{
 			UseShellExecute = false,
 			CreateNoWindow = true,

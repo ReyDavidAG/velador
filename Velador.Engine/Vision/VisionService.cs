@@ -16,6 +16,7 @@ public sealed record VisionSnapshot(
 	bool ManualHold,
 	int? TargetId,
 	bool Coasting,
+	bool Returning,
 	PtzSpeed Command,
 	IReadOnlyList<TrackState> Tracks,
 	long AtMs);
@@ -37,6 +38,12 @@ public sealed class CameraVision
 	public TaskCompletionSource<bool> NextFrame { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	public bool Busy { get; set; }
 	public bool Coasting { get; set; }
+	public PanTilt? Home { get; set; }
+	public long CaptureHomeAtMs { get; set; }
+	public long LastTargetMs { get; set; }
+	public bool AtHome { get; set; } = true;
+	public bool ReturnHome { get; set; }
+	public long ReturnedAtMs { get; set; }
 }
 
 public sealed class VisionService(
@@ -56,11 +63,31 @@ public sealed class VisionService(
 	const long PersonGoneMs = 4000;
 	const long MinSightingMs = 800;
 	const long ManualHoldMs = 10_000;
+	const long ReturnAfterMs = 8_000;
+	const long HomeAfterManualMs = 1_500;
 
 	readonly ConcurrentDictionary<string, CameraVision> _cameras = new();
 	readonly Lock _settingsLock = new();
 	PersonDetector? _detector;
 	string? _detectorFailure;
+	FaceDetector? _faces;
+	bool _facesTried;
+
+	FaceDetector? Faces()
+	{
+		if (_facesTried) return _faces;
+		_facesTried = true;
+		if (EnginePaths.FaceModel() is not { } model) return null;
+		try
+		{
+			_faces = new FaceDetector(model);
+		}
+		catch (Exception e)
+		{
+			log.LogError(e, "The face model did not load");
+		}
+		return _faces;
+	}
 
 	long Now => time.GetUtcNow().ToUnixTimeMilliseconds();
 
@@ -70,9 +97,9 @@ public sealed class VisionService(
 	{
 		var v = _cameras.GetValueOrDefault(cameraId);
 		var following = IsFollowing(cameraId);
-		if (v is null) return new VisionSnapshot(settings.DetectPeople ? "starting" : "off", null, 0, following, false, null, false, PtzSpeed.Zero, [], Now);
+		if (v is null) return new VisionSnapshot(settings.DetectPeople ? "starting" : "off", null, 0, following, false, null, false, false, PtzSpeed.Zero, [], Now);
 		var fresh = Now - v.TracksAtMs < 2000 ? v.Tracks : [];
-		return new VisionSnapshot(v.Status, v.Detail, Math.Round(v.Fps, 1), following, Now < v.ManualUntilMs, v.TargetId, v.Coasting, v.Wanted, fresh, v.TracksAtMs);
+		return new VisionSnapshot(v.Status, v.Detail, Math.Round(v.Fps, 1), following, Now < v.ManualUntilMs, v.TargetId, v.Coasting, Now - v.ReturnedAtMs < 4000, v.Wanted, fresh, v.TracksAtMs);
 	}
 
 	public bool IsFollowing(string cameraId)
@@ -93,12 +120,19 @@ public sealed class VisionService(
 			v.Follow.Reset();
 			v.TargetId = null;
 			v.ManualUntilMs = 0;
+			v.CaptureHomeAtMs = on ? Now : 0;
+			v.AtHome = true;
+			v.ReturnHome = false;
 		}
 	}
 
 	public void ManualMove(string cameraId)
 	{
-		if (_cameras.TryGetValue(cameraId, out var v)) v.ManualUntilMs = Now + ManualHoldMs;
+		if (!_cameras.TryGetValue(cameraId, out var v)) return;
+		v.ManualUntilMs = Now + ManualHoldMs;
+		if (IsFollowing(cameraId)) v.CaptureHomeAtMs = Now + HomeAfterManualMs;
+		v.AtHome = true;
+		v.ReturnHome = false;
 	}
 
 	public PtzCalibration? Calibration(string cameraId)
@@ -141,6 +175,7 @@ public sealed class VisionService(
 				}
 				Sweep();
 				if (!_regrouped) Regroup();
+				if (!_backfilled) BackfillFaces();
 				await Task.Delay(TimeSpan.FromSeconds(5), ct);
 			}
 		}
@@ -149,6 +184,42 @@ public sealed class VisionService(
 
 	long _sweptMs;
 	bool _regrouped;
+	bool _backfilled;
+
+	void BackfillFaces()
+	{
+		_backfilled = true;
+		if (Faces() is not { } faces) return;
+		var found = 0;
+		foreach (var (id, file) in database.SightingsWithoutFace())
+		{
+			try
+			{
+				var (w, h, bgr) = Png.ToBgr(File.ReadAllBytes(file));
+				var top = h / 2;
+				var face = top >= 32 ? faces.Best(bgr[..(w * top * 3)], w, top) : null;
+				if (face is null || face.Value.Box.W * w < 14)
+				{
+					database.SetFace(id, "");
+					continue;
+				}
+				var frame = new BgrFrame(bgr, w, h, 0);
+				var side = Math.Max(face.Value.Box.W * w, face.Value.Box.H * top) * 1.7;
+				var fx = (int)Math.Clamp(face.Value.Box.Cx * w - side / 2, 0, w - 1);
+				var fy = (int)Math.Clamp(face.Value.Box.Cy * top - side / 2, 0, h - 1);
+				var fs = (int)Math.Min(side, Math.Min(w - fx, h - fy));
+				var faceFile = Path.ChangeExtension(file, null) + "_face.png";
+				File.WriteAllBytes(faceFile, Png.FromBgr(frame.Crop(fx, fy, fs, fs), fs, fs));
+				database.SetFace(id, faceFile);
+				found++;
+			}
+			catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or IndexOutOfRangeException or ArgumentException)
+			{
+				database.SetFace(id, "");
+			}
+		}
+		if (found > 0) log.LogInformation("Found {Count} faces in saved sightings", found);
+	}
 
 	void Regroup()
 	{
@@ -231,6 +302,7 @@ public sealed class VisionService(
 			}
 			v.Status = "starting";
 			v.Detail = null;
+			if (IsFollowing(v.Camera.Id) && v.Home is null) v.CaptureHomeAtMs = Now + 3000;
 			using (var reader = FrameReader.Start(ffmpeg, $"rtsp://127.0.0.1:{ports.Rtsp}/{v.Camera.MediaPath(Camera.MinorStream)}", v.Camera.Rotation, time))
 			{
 				try
@@ -260,6 +332,10 @@ public sealed class VisionService(
 		public byte[] Crop = [];
 		public int W, H;
 		public double Quality, Score;
+		public byte[]? Face;
+		public int FaceW, FaceH;
+		public double FaceQuality;
+		public int Looks;
 	}
 
 	async Task ProcessAsync(CameraVision v, FrameReader reader, PersonDetector detector, CancellationToken ct)
@@ -323,22 +399,50 @@ public sealed class VisionService(
 			{
 				var (first, last) = spans[gone];
 				spans.Remove(gone);
-				if (best.Remove(gone, out var candidate) && last - first >= MinSightingMs) Save(v.Camera, candidate, first, last);
+				if (best.Remove(gone, out var candidate) && candidate.Crop.Length > 0 && last - first >= MinSightingMs) Save(v.Camera, candidate, first, last);
 			}
 			Steer(v, tracks, now);
 		}
 		if (personOpen) database.CloseEvent(v.Camera.Id, EventKind.Person, Now);
 	}
 
-	static void Consider(Dictionary<int, Candidate> best, BgrFrame frame, TrackState track)
+	void Consider(Dictionary<int, Candidate> best, BgrFrame frame, TrackState track)
 	{
 		var box = track.Box;
 		var ratio = box.H / Math.Max(0.001, box.W) * frame.Height / frame.Width;
 		var quality = track.Score * Math.Sqrt(box.Area) * (box.TouchesEdge() ? 0.4 : 1) * (ratio is > 1.4 and < 4.5 ? 1 : 0.6);
-		if (best.TryGetValue(track.Id, out var known) && known.Quality * 1.1 >= quality) return;
-		var (x, y, w, h) = frame.PixelRect(box, 0.08);
-		if (w < 24 || h < 48) return;
-		best[track.Id] = new Candidate { Crop = frame.Crop(x, y, w, h), W = w, H = h, Quality = quality, Score = quality };
+		if (!best.TryGetValue(track.Id, out var candidate)) best[track.Id] = candidate = new Candidate();
+		if (candidate.Quality * 1.1 < quality)
+		{
+			var (x, y, w, h) = frame.PixelRect(box, 0.08);
+			if (w >= 24 && h >= 48)
+			{
+				candidate.Crop = frame.Crop(x, y, w, h);
+				(candidate.W, candidate.H, candidate.Quality, candidate.Score) = (w, h, quality, quality);
+			}
+		}
+		if (candidate.Looks++ % 3 == 0) LookForFace(candidate, frame, box);
+	}
+
+	void LookForFace(Candidate candidate, BgrFrame frame, Box person)
+	{
+		if (person.H * frame.Height < 90 || Faces() is not { } faces) return;
+		var (x, y, w, h) = frame.PixelRect(new Box(person.X - person.W * 0.1, person.Y - person.H * 0.05, person.W * 1.2, person.H * 0.5));
+		if (w < 32 || h < 32) return;
+		if (faces.Best(frame.Crop(x, y, w, h), w, h) is not { } face) return;
+		var fw = face.Box.W * w;
+		var fh = face.Box.H * h;
+		var quality = face.Score * Math.Sqrt(fw * fh);
+		if (fw < 14 || quality <= candidate.FaceQuality) return;
+		var side = Math.Max(fw, fh) * 1.7;
+		var cx = x + face.Box.Cx * w;
+		var cy = y + face.Box.Cy * h;
+		var fx = (int)Math.Clamp(cx - side / 2, 0, frame.Width - 1);
+		var fy = (int)Math.Clamp(cy - side / 2, 0, frame.Height - 1);
+		var fs = (int)Math.Min(side, Math.Min(frame.Width - fx, frame.Height - fy));
+		if (fs < 16) return;
+		candidate.Face = frame.Crop(fx, fy, fs, fs);
+		(candidate.FaceW, candidate.FaceH, candidate.FaceQuality) = (fs, fs, quality);
 	}
 
 	void Save(Camera camera, Candidate c, long firstMs, long lastMs)
@@ -350,9 +454,15 @@ public sealed class VisionService(
 			Directory.CreateDirectory(dir);
 			var file = Path.Combine(dir, $"{firstMs}.png");
 			File.WriteAllBytes(file, Png.FromBgr(c.Crop, c.W, c.H));
+			string? faceFile = null;
+			if (c.Face is not null)
+			{
+				faceFile = Path.Combine(dir, $"{firstMs}_face.png");
+				File.WriteAllBytes(faceFile, Png.FromBgr(c.Face, c.FaceW, c.FaceH));
+			}
 			var descriptor = Appearance.Describe(c.Crop, c.W, c.H);
 			var person = PeopleGrouping.Match(descriptor, database.PeopleOn(camera.Id, day));
-			database.AddSighting(camera.Id, day, person, descriptor, new TimeRange(firstMs, lastMs), file, c.Score);
+			database.AddSighting(camera.Id, day, person, descriptor, new TimeRange(firstMs, lastMs), file, c.Score, faceFile);
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
@@ -375,6 +485,16 @@ public sealed class VisionService(
 		v.Wanted = v.Follow.Step(target, now);
 		v.TargetId = target?.Id;
 		v.Coasting = v.Follow.Coasting;
+		if (target is not null)
+		{
+			v.LastTargetMs = now;
+			v.AtHome = false;
+		}
+		else if (!v.AtHome && !v.Coasting && v.Home is not null && now - v.LastTargetMs > ReturnAfterMs)
+		{
+			v.AtHome = true;
+			v.ReturnHome = true;
+		}
 	}
 
 	async Task SendAsync(CameraVision v, CancellationToken ct)
@@ -388,6 +508,22 @@ public sealed class VisionService(
 			{
 				await Task.Delay(60, ct);
 				if (v.Busy) continue;
+				if (v.CaptureHomeAtMs > 0 && Now >= v.CaptureHomeAtMs && links.For(v.Camera.Id) is { } homeLink)
+				{
+					v.CaptureHomeAtMs = 0;
+					v.Home = await homeLink.PositionAsync(ct);
+				}
+				if (v.ReturnHome && v.Home is { } home && links.For(v.Camera.Id) is { } returnLink)
+				{
+					v.ReturnHome = false;
+					v.Wanted = PtzSpeed.Zero;
+					v.Follow.Reset();
+					await returnLink.AbsoluteMoveAsync(home, ct);
+					sent = PtzSpeed.Zero;
+					sentMs = Now;
+					v.ReturnedAtMs = Now;
+					continue;
+				}
 				var wanted = v.Wanted;
 				var changed = Math.Abs(wanted.X - sent.X) > 0.05 || Math.Abs(wanted.Y - sent.Y) > 0.05 || wanted.IsZero != sent.IsZero;
 				var keepAlive = !wanted.IsZero && Now - sentMs > 600;
@@ -551,5 +687,6 @@ public sealed class VisionService(
 	{
 		await base.StopAsync(ct);
 		_detector?.Dispose();
+		_faces?.Dispose();
 	}
 }

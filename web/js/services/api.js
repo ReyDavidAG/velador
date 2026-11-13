@@ -46,5 +46,6 @@ export const api = {
 	calibrate: cameraId => send('POST', `/cameras/${cameraId}/vision/calibrate`),
 	people: (cameraId, date) => send('GET', `/cameras/${cameraId}/people?date=${date}`),
 	sightingUrl: id => `/api/sightings/${id}/image`,
+	faceUrl: id => `/api/sightings/${id}/face`,
 	forgetPerson: id => send('DELETE', `/people/${id}`),
 }

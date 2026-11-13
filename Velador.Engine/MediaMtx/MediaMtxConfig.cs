@@ -19,6 +19,7 @@ public static class MediaMtxConfig
 		Line(yaml, "webrtc: yes");
 		Line(yaml, $"webrtcAddress: 127.0.0.1:{ports.WebRtc}");
 		Line(yaml, $"webrtcLocalUDPAddress: 127.0.0.1:{ports.WebRtcUdp}");
+		Line(yaml, $"webrtcLocalTCPAddress: 127.0.0.1:{ports.WebRtcUdp}");
 		Line(yaml, "webrtcIPsFromInterfaces: no");
 		Line(yaml, "webrtcAdditionalHosts: [127.0.0.1]");
 		Line(yaml, "webrtcAllowOrigins: []");

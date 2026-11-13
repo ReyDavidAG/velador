@@ -22,7 +22,7 @@ start.addEventListener('click', async () => {
 		status.textContent = 'Esperando a que responda…'
 	} catch (error) {
 		start.disabled = false
-		status.textContent = error === 'not-installed' ? 'El motor no está instalado. Corre scripts/install_macos.sh desde la carpeta de Velador.' : String(error)
+		status.textContent = error === 'not-installed' ? 'El motor no está instalado. Vuelve a instalar Velador.' : String(error)
 	}
 })
 

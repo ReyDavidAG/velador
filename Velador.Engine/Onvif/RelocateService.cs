@@ -5,15 +5,31 @@ using Velador.Engine.Secrets;
 
 namespace Velador.Engine.Onvif;
 
-public sealed class RelocateService(EngineSettings settings, EnginePaths paths, ContinuityService continuity, CameraLinks links, ISecretStore secrets, HttpClient http, TimeProvider time, ILogger<RelocateService> log)
+public sealed class RelocateService(EngineSettings settings, EnginePaths paths, ContinuityService continuity, CameraLinks links, ISecretStore secrets, INetworkProbe probe, HttpClient http, TimeProvider time, ILogger<RelocateService> log)
 	: BackgroundService
 {
 	const long LostForMs = 30_000;
+
+	string? _network;
+	long _networkChangedMs;
+
+	public NetworkNow? Network { get; private set; }
 
 	protected override async Task ExecuteAsync(CancellationToken ct)
 	{
 		while (!ct.IsCancellationRequested)
 		{
+			Network = probe.Current();
+			var changed = Network is not null && _network is not null && Network.Id != _network;
+			if (changed)
+			{
+				_networkChangedMs = time.GetUtcNow().ToUnixTimeMilliseconds();
+				log.LogWarning("Network changed to {Name}", Network!.Name);
+				foreach (var camera in settings.Cameras.ToList())
+					if (KnownNetworks.HostFor(settings.Networks.GetValueOrDefault(camera.Id) ?? [], Network.Id) is { } host && host != camera.Host)
+						Replace(camera, camera with { Host = host }, restart: true);
+			}
+			if (Network is not null) _network = Network.Id;
 			foreach (var camera in settings.Cameras.ToList())
 			{
 				try
@@ -25,7 +41,7 @@ public sealed class RelocateService(EngineSettings settings, EnginePaths paths, 
 					if (ct.IsCancellationRequested) return;
 				}
 			}
-			await Task.Delay(TimeSpan.FromSeconds(20), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			await Task.Delay(TimeSpan.FromSeconds(10), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}
 
@@ -34,11 +50,13 @@ public sealed class RelocateService(EngineSettings settings, EnginePaths paths, 
 		var guard = continuity.Guard(camera.Id);
 		if (guard.Online && guard.OpenGap is null)
 		{
+			Remember(camera);
 			if (camera.Serial.Length == 0 && links.For(camera.Id) is { } onvif && await onvif.SerialAsync(ct) is { Length: > 0 } serial) Replace(camera, camera with { Serial = serial }, restart: false);
 			return;
 		}
 		var now = time.GetUtcNow().ToUnixTimeMilliseconds();
-		if (camera.Serial.Length == 0 || guard.Online || guard.OpenGap is not { } gap || now - gap.StartMs < LostForMs) return;
+		var justMoved = now - _networkChangedMs < 120_000;
+		if (camera.Serial.Length == 0 || guard.Online || guard.OpenGap is not { } gap || (!justMoved && now - gap.StartMs < LostForMs)) return;
 		if (await ReachesAsync(camera.Host, camera.RtspPort, ct)) return;
 		if (secrets.Get(camera.Id) is not { Length: > 0 } password) return;
 		var seen = new List<(string Host, int OnvifPort, string Serial)>();
@@ -72,6 +90,31 @@ public sealed class RelocateService(EngineSettings settings, EnginePaths paths, 
 			ct.ThrowIfCancellationRequested();
 			return false;
 		}
+	}
+
+	void Remember(Camera camera)
+	{
+		if (Network is null) return;
+		var known = settings.Networks.GetValueOrDefault(camera.Id) ?? [];
+		var current = known.FirstOrDefault(k => k.Id == Network.Id);
+		if (current is not null && current.Host == camera.Host && current.Name == Network.Name) return;
+		settings.Networks[camera.Id] = KnownNetworks.Remember(known, new KnownNetwork(Network.Id, Network.Name, camera.Host, time.GetUtcNow().ToUnixTimeMilliseconds()));
+		settings.Save(paths);
+	}
+
+	public bool Use(string cameraId, string networkId)
+	{
+		var camera = settings.Cameras.FirstOrDefault(c => c.Id == cameraId);
+		if (camera is null || KnownNetworks.HostFor(settings.Networks.GetValueOrDefault(cameraId) ?? [], networkId) is not { } host) return false;
+		if (host != camera.Host) Replace(camera, camera with { Host = host }, restart: true);
+		return true;
+	}
+
+	public bool Forget(string cameraId, string networkId)
+	{
+		if (!settings.Networks.TryGetValue(cameraId, out var known) || known.RemoveAll(k => k.Id == networkId) == 0) return false;
+		settings.Save(paths);
+		return true;
 	}
 
 	void Replace(Camera old, Camera updated, bool restart)

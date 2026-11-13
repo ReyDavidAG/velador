@@ -10,6 +10,7 @@ Todo bajo `http://127.0.0.1:8352/api`, con sesión (cookie `velador_session` o c
 | `POST /cameras/{id}/live` · `PATCH/DELETE /cameras/{id}/live/{sesión}` | Señalización WHEP del vivo, reenviada a MediaMTX. |
 | `GET /cameras/{id}/ptz` · `POST /cameras/{id}/ptz` `{x,y}` | Posición y giro relativo (−1 a 1). |
 | `GET /cameras` · `PUT /cameras/{id}` · `DELETE /cameras/{id}` | Alta, edición y baja. La contraseña sólo entra; nunca sale. |
+| `POST /cameras/{id}/networks/{red}/use` · `DELETE /cameras/{id}/networks/{red}` | Usar la dirección recordada de una red, u olvidarla. Hasta 3 redes por cámara. |
 | `GET /cameras/discover` | Cámaras ONVIF que responden en la red local. |
 | `POST /cameras/test` `{host,user,password\|id}` | Comprueba red y cuenta sin guardar nada. |
 | `GET /settings` · `PUT /settings` | Carpeta de grabación, retención, no dormir; lista de discos externos. |

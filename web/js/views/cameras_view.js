@@ -12,6 +12,9 @@ const card = (c, live) => {
 		<div class="cam-body">
 			<header class="cam-head"><div><h2>${esc(c.name)}</h2><p class="muted-s mono">${esc(c.host)}</p></div><span class="chip ${cls}"><i class="dot"></i>${label}</span></header>
 			<dl class="kv"><div><dt>Cuenta de cámara</dt><dd class="secret">${I.lock}<span>${esc(c.user)} · contraseña en el llavero</span></dd></div><div><dt>Imagen</dt><dd>${c.rotation === 180 ? 'Girada 180°' : 'Sin girar'}</dd></div></dl>
+			<div class="nets"><div class="form-row"><b>Redes conocidas</b><span class="muted-s">${c.networks.length} de 3 · ${c.followsAddress ? 'se reconecta sola aunque cambie su dirección' : 'aún no se identifica la cámara para seguirla'}</span></div>
+				${c.networks.map(n => `<div class="net ${n.current ? 'on' : ''}"><span class="ev-ico ${n.current ? 'span' : ''}">${I.wifi}</span><span class="ev-main"><b>${esc(n.name)}</b><small class="mono">${esc(n.host)}${n.current ? ' · conectado ahora' : ''}</small></span>${n.current ? '' : `<button class="btn small" type="button" data-use="${esc(n.id)}" data-of="${esc(c.id)}">Usar</button>`}<button class="icon-btn danger" type="button" data-forget="${esc(n.id)}" data-of="${esc(c.id)}" title="Olvidar esta red">${I.trash}<span class="sr-only">Olvidar esta red</span></button></div>`).join('') || '<p class="muted-s">Se llenan solas: cada red donde Velador vea esta cámara queda guardada.</p>'}
+			</div>
 			<ul class="results" data-results hidden></ul>
 			<div class="cam-actions"><button class="btn" type="button" data-test="${esc(c.id)}">Probar conexión</button><button class="btn" type="button" data-edit="${esc(c.id)}">Editar</button><button class="btn ghost" type="button" data-remove="${esc(c.id)}">${I.trash}<span>Quitar</span></button></div>
 		</div>
@@ -62,6 +65,17 @@ const mount = main => {
 				toast(err.message)
 			}
 			test.disabled = false
+		}
+		const use = e.target.closest('[data-use]')
+		if (use) {
+			await api.useNetwork(use.dataset.of, use.dataset.use).catch(err => toast(err.message))
+			toast('Cambiando a la dirección de esa red…')
+			setTimeout(() => draw(), 3000)
+		}
+		const forget = e.target.closest('[data-forget]')
+		if (forget && confirmOnce(forget, 'Olvidar')) {
+			await api.forgetNetwork(forget.dataset.of, forget.dataset.forget).catch(err => toast(err.message))
+			draw()
 		}
 		const remove = e.target.closest('[data-remove]')
 		if (remove && confirmOnce(remove, 'Quitar y dejar de grabarla')) {

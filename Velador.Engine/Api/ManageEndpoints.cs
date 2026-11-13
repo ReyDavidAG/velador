@@ -32,7 +32,18 @@ public static class ManageEndpoints
 			storage.Reclaim();
 			return Results.NoContent();
 		});
-		api.MapGet("/cameras", (EngineSettings settings) => Results.Ok(settings.Cameras.Select(c => new { c.Id, c.Name, c.Host, c.User, c.Rotation })));
+		api.MapGet("/cameras", (EngineSettings settings, RelocateService relocate) => Results.Ok(settings.Cameras.Select(c => new
+		{
+			c.Id,
+			c.Name,
+			c.Host,
+			c.User,
+			c.Rotation,
+			followsAddress = c.Serial.Length > 0,
+			networks = (settings.Networks.GetValueOrDefault(c.Id) ?? []).Select(n => new { n.Id, n.Name, n.Host, current = n.Id == relocate.Network?.Id }),
+		})));
+		api.MapPost("/cameras/{id}/networks/{networkId}/use", (string id, string networkId, RelocateService relocate) => relocate.Use(id, networkId) ? Results.NoContent() : Results.NotFound());
+		api.MapDelete("/cameras/{id}/networks/{networkId}", (string id, string networkId, RelocateService relocate) => relocate.Forget(id, networkId) ? Results.NoContent() : Results.NotFound());
 		api.MapGet("/cameras/discover", async (EngineSettings settings, CancellationToken ct) =>
 			Results.Ok((await Discovery.ProbeAsync(TimeSpan.FromSeconds(2), ct)).Select(f => new { f.Host, f.OnvifPort, known = settings.Cameras.Any(c => c.Host == f.Host) })));
 		api.MapPost("/cameras/test", Test);

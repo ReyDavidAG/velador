@@ -195,6 +195,42 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 
 - [ ] Motor en un equipo siempre prendido y esta app como visor. Acceso por Tailscale. Mosaico de cámaras. Detección propia si los eventos de la cámara no bastan.
 
+### 7 · Guardia a mano, espacio y seguimiento propio
+
+Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
+
+**Pausar la grabación.**
+
+- [ ] `POST /api/cameras/{id}/recording` con `{paused, minutes?}`. El motor apaga `record` de esa ruta por la API de MediaMTX (probado: el vivo no se corta, el archivo se cierra y al reanudar empieza otro). Se guarda en `config.json` para que sobreviva a un reinicio, y la configuración de MediaMTX la respeta al arrancar.
+- [ ] Hueco con causa `paused` abierto al pausar y cerrado al reanudar; el vigía no lo cierra ni abre otro mientras dure.
+- [ ] «Reanudar en 15 min, 1 h o a mano». Botón en En vivo (también en pantalla completa) y en la bandeja.
+
+**Espacio y borrado.** Ya existe «Guardar hasta N días» y «Sin pasar de N %». Se agrega:
+
+- [ ] Cuánto se graba por día (medido de las últimas 24 h), cuántos días caben con los límites actuales, desde cuándo hay grabación y qué día se borra después.
+
+**Detección propia de personas.**
+
+- [ ] FFmpeg (LGPL, compilación de BtbN fijada con suma) decodifica `stream2` desde MediaMTX a 10 cuadros por segundo; nunca toca el 1080p ni la grabación.
+- [ ] YOLOX-tiny (Apache 2.0) en ONNX Runtime (MIT), en CPU. Sólo la clase persona.
+- [ ] Sucesos `person` propios junto a los de la cámara; el aviso del sistema ya existente los toma.
+- [ ] Se puede apagar en Ajustes; sin FFmpeg o sin modelo, se dice y no se detecta.
+
+**Seguimiento con predicción.**
+
+- [ ] Rastreador en `Velador.Core` (puro, con pruebas): filtro de Kalman de velocidad constante y asociación por IoU en dos pasadas (estilo ByteTrack). Estima posición y velocidad de cada persona.
+- [ ] Control de la cámara: `ContinuousMove` de ONVIF con `Timeout` corto (si el motor muere, la cámara se detiene sola) y `Stop`. Apunta adonde estará la persona tras el retraso medido del video, con zona muerta al centro y velocidad limitada. Si la cámara no acepta movimiento continuo, pasos relativos.
+- [ ] Interruptor «Seguir personas» en En vivo y pantalla completa; al mover a mano se suspende 10 s. Hay que apagar el seguimiento de la app Tapo para que no compitan.
+- [ ] Recuadros de las personas sobre el vivo.
+
+**Fotos de personas.**
+
+- [ ] De cada persona seguida se guarda la mejor foto (cuerpo completo, la más grande y nítida) en PNG, junto a su hora.
+- [ ] Se agrupan por parecido de apariencia (color de ropa por zonas del cuerpo). Sirve dentro del mismo día; no es reconocimiento facial y no promete identificar a nadie.
+- [ ] Vista «Personas»: cada grupo con sus fotos y las horas en que sale; un clic lleva a ese momento en la Ronda. Se borran con la misma retención que el video.
+
+**Límites honestos.** Si alguien cruza más rápido de lo que gira el motor de la cámara, ningún programa lo alcanza; la predicción reduce cuánto se le pierde. Detectar en CPU cuesta unos puntos de un núcleo; se mide y se dice.
+
 ## Disco externo
 
 Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.

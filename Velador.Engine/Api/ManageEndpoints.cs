@@ -130,6 +130,9 @@ public static class ManageEndpoints
 		settings.Cameras.RemoveAll(c => c.Id == id);
 		settings.Cameras.Add(camera);
 		settings.Save(paths);
+		if (existing is not null && existing.Host != camera.Host) camera = camera with { Serial = "" };
+		settings.Cameras[^1] = camera;
+		settings.Save(paths);
 		var streamChanged = existing is null || existing.Host != camera.Host || existing.User != camera.User || !string.IsNullOrEmpty(request.Password);
 		if (streamChanged)
 		{

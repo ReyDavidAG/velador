@@ -380,3 +380,25 @@ public class DiscoveryAndClipTests
 		Assert.Equal(EventKind.Person, db.LastEvent("entrada")!.Kind);
 	}
 }
+
+public class RelocationTests
+{
+	static readonly Camera Entrada = new("entrada", "Entrada", "192.168.1.16", "user", Serial: "ABC123");
+
+	[Fact]
+	public void The_camera_is_found_again_by_its_serial_at_a_new_address()
+	{
+		var place = Camera.Relocated(Entrada, [("192.168.1.40", 2020, "ZZZ"), ("192.168.1.77", 2020, "ABC123")]);
+
+		Assert.Equal(("192.168.1.77", 2020), place);
+	}
+
+	[Fact]
+	public void Nothing_changes_without_a_serial_or_without_a_single_clear_match()
+	{
+		Assert.Null(Camera.Relocated(Entrada with { Serial = "" }, [("192.168.1.77", 2020, "")]));
+		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.77", 2020, "OTHER")]));
+		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.16", 2020, "ABC123")]));
+		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.77", 2020, "ABC123"), ("192.168.1.78", 2020, "ABC123")]));
+	}
+}

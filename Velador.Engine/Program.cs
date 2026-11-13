@@ -41,6 +41,7 @@ builder.Services.AddSingleton<IRecordingStore>(new RecordingStore(() => storage.
 builder.Services.AddHostedService<RetentionService>();
 builder.Services.AddSingleton<CameraLinks>();
 builder.Services.AddHostedService<EventService>();
+builder.Services.AddHostedService<RelocateService>();
 
 var app = builder.Build();
 app.UseSession(session);

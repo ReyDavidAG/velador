@@ -41,9 +41,21 @@ public sealed class EnginePaths
 	public string MediaPid => Path.Combine(Home, "mediamtx.pid");
 	public string Handover => Path.Combine(Home, "handover");
 
-	public string MediaBinary =>
-		Environment.GetEnvironmentVariable("VELADOR_MEDIAMTX")
-		?? Path.Combine(Home, "bin", OperatingSystem.IsWindows() ? "mediamtx.exe" : "mediamtx");
+	public string MediaBinary
+	{
+		get
+		{
+			var name = OperatingSystem.IsWindows() ? "mediamtx.exe" : "mediamtx";
+			var beside = Path.Combine(AppContext.BaseDirectory, name);
+			return Environment.GetEnvironmentVariable("VELADOR_MEDIAMTX") ?? (File.Exists(beside) ? beside : Path.Combine(Home, "bin", name));
+		}
+	}
+
+	public static string? WebRoot()
+	{
+		var beside = Path.Combine(AppContext.BaseDirectory, "web");
+		return Environment.GetEnvironmentVariable("VELADOR_WEB") ?? (Directory.Exists(beside) ? beside : null);
+	}
 
 	public string Recordings(EngineSettings settings) =>
 		settings.RecordingsDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Velador");

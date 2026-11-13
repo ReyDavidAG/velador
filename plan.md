@@ -231,6 +231,8 @@ Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
 
 **Lo que se aprendió al construirla.** El video para la detección llega con ~1.5 s de retraso; seguir la posición en la imagen hacía oscilar la cámara. Por eso el control estima la posición de la persona en el mundo y usa un predictor de Smith. El seguimiento propio de la cámara probablemente sufre lo mismo con menos retraso.
 
+**Agregado el mismo día, a pedido del usuario:** caras con YuNet (sólo detección), búsqueda hacia el lado por donde salió la persona y regreso a la posición de inicio, zoom digital en vivo y en la Ronda, y selector de calidad del vivo con la resolución, cuadros por segundo y Mb/s reales.
+
 **Límites honestos.** Si alguien cruza más rápido de lo que gira el motor de la cámara, ningún programa lo alcanza; la predicción reduce cuánto se le pierde. Detectar en CPU cuesta unos puntos de un núcleo; se mide y se dice.
 
 ## Disco externo
@@ -245,7 +247,7 @@ Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.
 
 ## Fuera de la primera versión
 
-Relevo en paralelo, selector de calidad en vivo, velocidad 60×, respaldo HLS.
+Relevo en paralelo, velocidad 60×, respaldo HLS.
 
 ## Riesgos
 

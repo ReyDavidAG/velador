@@ -1,4 +1,5 @@
 import { roundHtml, setCursor } from '../components/round_timeline.js'
+import { attachZoom, zoomClick, zoomControls, zoomLabel } from '../components/zoom.js'
 import { api } from '../services/api.js'
 import { watchLive } from '../services/live.js'
 import { loadRound, loadSummary, state } from '../store.js'
@@ -40,15 +41,18 @@ const html = () => `<div class="live-grid">
 			<div class="osd tl"><span class="badge live" data-badge><i class="dot pulse"></i>EN VIVO</span><span class="badge ghost" data-paused-badge hidden>${I.pause}SIN GRABAR</span><span class="osd-name">${esc(state.camera.name)}</span><span class="follow-chip" data-follow-chip hidden></span></div>
 			<div class="boxes" data-boxes hidden></div>
 			<div class="osd tr mono" data-clock></div>
+			${zoomControls()}
 			<div class="stage-note" data-note><b>Conectando con la cámara…</b></div>
 			<div class="stage-bar">
 				<button class="bar-btn" type="button" data-mute title="Sonido">${I.mute}<span class="sr-only">Sonido</span></button>
-				<button class="bar-btn text" type="button" data-light hidden aria-pressed="false">${I.bulb}<span>Luz</span></button>
-				<span class="rec-wrap"><button class="bar-btn text" type="button" data-rec aria-haspopup="menu" aria-expanded="false">${I.pause}<span>Pausar grabación</span></button>
+				<button class="bar-btn text" type="button" data-light hidden aria-pressed="false" title="Luz de la cámara">${I.bulb}<span>Luz</span></button>
+				<span class="rec-wrap"><button class="bar-btn text" type="button" data-rec aria-haspopup="menu" aria-expanded="false" title="Pausar o reanudar la grabación">${I.pause}<span>Pausar grabación</span></button>
 				<span class="rec-menu" role="menu" data-rec-menu hidden><b>Dejar de grabar</b><button type="button" role="menuitem" data-pause="15">15 minutos</button><button type="button" role="menuitem" data-pause="60">1 hora</button><button type="button" role="menuitem" data-pause="240">4 horas</button><button type="button" role="menuitem" data-pause="0">Hasta que la reanude</button></span></span>
-				<button class="bar-btn text" type="button" data-follow aria-pressed="false" hidden>${I.person}<span>Seguir personas</span></button>
+				<button class="bar-btn text" type="button" data-follow aria-pressed="false" hidden title="Seguir personas">${I.person}<span>Seguir personas</span></button>
 				<span class="spacer"></span>
-				<button class="bar-btn text" type="button" data-save>${I.clips}<span>Guardar los últimos 30 s</span></button>
+				<button class="bar-btn text" type="button" data-save title="Guardar los últimos 30 s">${I.clips}<span>Guardar los últimos 30 s</span></button>
+				<span class="rec-wrap"><button class="bar-btn text mono quality" type="button" data-quality aria-haspopup="menu" aria-expanded="false" title="Calidad del vivo">${I.live}<span>—</span></button>
+				<span class="rec-menu right" role="menu" data-quality-menu hidden><b>Calidad del vivo</b><button type="button" role="menuitemradio" data-stream="main">Alta · 1080p<small>La imagen completa de la cámara</small></button><button type="button" role="menuitemradio" data-stream="minor">Ligera · 720p<small>Menos red y procesador; para conexiones lentas</small></button><span class="menu-note mono" data-quality-detail></span></span></span>
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
 			</div>
 			<div class="pad stage-pad" role="group" aria-label="Mover la cámara">${PAD_KEYS}</div>
@@ -67,11 +71,51 @@ const mount = main => {
 	const stage = main.querySelector('[data-stage]')
 	let round = null
 	let alive = true
-	const stopLive = watchLive(state.camera.id, video, s => {
-		note.hidden = s === 'live'
-		note.innerHTML = s === 'reconnecting' ? '<b>Sin imagen</b><span>Reintentando la conexión…</span>' : '<b>Conectando con la cámara…</b>'
-		main.querySelector('[data-badge]').hidden = s !== 'live'
-	})
+	const STREAM_KEY = 'velador-live-stream'
+	let stream = 'main'
+	try {
+		stream = localStorage.getItem(STREAM_KEY) === 'minor' ? 'minor' : 'main'
+	} catch {}
+	const qualityBtn = main.querySelector('[data-quality]')
+	const qualityMenu = main.querySelector('[data-quality-menu]')
+	const showStats = st => {
+		const label = st.height >= 1000 ? '1080p' : st.height >= 700 ? '720p' : st.height ? `${st.height}p` : stream === 'main' ? 'Alta' : 'Ligera'
+		qualityBtn.querySelector('span').textContent = st.fps ? `${label} · ${Math.round(st.fps)} cps` : label
+		main.querySelector('[data-quality-detail]').textContent = st.width ? `Llega ${st.width}×${st.height} a ${Math.round(st.fps)} cuadros por segundo · ${(st.kbps / 1000).toFixed(1)} Mb/s` : ''
+	}
+	const markStream = () => {
+		for (const b of qualityMenu.querySelectorAll('[data-stream]')) b.setAttribute('aria-checked', String(b.dataset.stream === stream))
+		showStats({ width: 0, height: 0, fps: 0, kbps: 0 })
+	}
+	const startLive = () =>
+		watchLive(
+			state.camera.id,
+			video,
+			s => {
+				note.hidden = s === 'live'
+				note.innerHTML = s === 'reconnecting' ? '<b>Sin imagen</b><span>Reintentando la conexión…</span>' : '<b>Conectando con la cámara…</b>'
+				main.querySelector('[data-badge]').hidden = s !== 'live'
+			},
+			{ stream, onStats: showStats }
+		)
+	markStream()
+	let stopLive = startLive()
+	const closeQuality = () => {
+		qualityMenu.hidden = true
+		qualityBtn.setAttribute('aria-expanded', 'false')
+	}
+	const setStream = next => {
+		closeQuality()
+		if (next === stream) return
+		stream = next
+		try {
+			localStorage.setItem(STREAM_KEY, stream)
+		} catch {}
+		markStream()
+		stopLive()
+		stopLive = startLive()
+		toast(stream === 'main' ? 'Vivo en alta calidad' : 'Vivo en calidad ligera')
+	}
 	const clock = () => {
 		const d = new Date()
 		main.querySelector('[data-clock]').textContent = d.toLocaleTimeString('es-MX', { hour12: false })
@@ -178,6 +222,7 @@ const mount = main => {
 	}
 	pollVision()
 	const visionTick = setInterval(pollVision, 300)
+	const zoom = attachZoom(stage, () => [video, boxes], { rotated: () => state.camera.rotation === 180, onChange: s => zoomLabel(stage, s) })
 	const lightBtn = main.querySelector('[data-light]')
 	const showLight = on => {
 		lightBtn.hidden = false
@@ -253,7 +298,7 @@ const mount = main => {
 		wake()
 	}
 	const onDblClick = e => {
-		if (e.target.closest('button, .stage-pad')) return
+		if (e.target.closest('button, .stage-pad, .zoom-ctl')) return
 		toggleFull()
 	}
 	document.addEventListener('keydown', onKey)
@@ -266,6 +311,15 @@ const mount = main => {
 	stage.addEventListener('pointermove', wake)
 	stage.addEventListener('dblclick', onDblClick)
 	const onClick = async e => {
+		if (zoomClick(e, zoom)) return
+		if (e.target.closest('[data-quality]')) {
+			qualityMenu.hidden = !qualityMenu.hidden
+			qualityBtn.setAttribute('aria-expanded', String(!qualityMenu.hidden))
+			return
+		}
+		const pick = e.target.closest('[data-stream]')
+		if (pick) return setStream(pick.dataset.stream)
+		if (!e.target.closest('[data-quality-menu]')) closeQuality()
 		if (e.target.closest('[data-rec]')) {
 			if (state.camera.state === 'paused') return setRecording(false)
 			recMenu.hidden = !recMenu.hidden
@@ -323,6 +377,7 @@ const mount = main => {
 		clearInterval(tick)
 		clearInterval(poll)
 		clearInterval(visionTick)
+		zoom.destroy()
 		held = null
 		clearTimeout(idleTimer)
 		stopLive()

@@ -240,3 +240,24 @@ public class PeopleGroupingTests
 		Assert.Equal(bgr, back);
 	}
 }
+
+public class YuvTests
+{
+	[Fact]
+	public void Gray_red_and_blue_come_out_in_bgr()
+	{
+		static byte[] Plain(byte y, byte u, byte v) => [.. Enumerable.Repeat(y, 4 * 2), .. Enumerable.Repeat(u, 2), .. Enumerable.Repeat(v, 2)];
+		var bgr = new byte[4 * 2 * 3];
+
+		Yuv.ToBgr(Plain(126, 128, 128), 4, 2, bgr);
+		Assert.All(bgr, b => Assert.InRange(b, 125, 130));
+
+		Yuv.ToBgr(Plain(81, 90, 240), 4, 2, bgr);
+		Assert.InRange(bgr[2], 240, 255);
+		Assert.InRange(bgr[0], 0, 10);
+
+		Yuv.ToBgr(Plain(41, 240, 110), 4, 2, bgr);
+		Assert.InRange(bgr[0], 240, 255);
+		Assert.InRange(bgr[2], 0, 10);
+	}
+}

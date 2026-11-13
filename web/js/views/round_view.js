@@ -1,4 +1,5 @@
 import { bindRound, gapAt, roundHtml, setCursor, setSel } from '../components/round_timeline.js'
+import { attachZoom, zoomClick, zoomControls, zoomLabel } from '../components/zoom.js'
 import { api } from '../services/api.js'
 import { loadRound, state } from '../store.js'
 import { CAUSE, dateLabel, dayLabel, esc, I, KIND, pct, segment, span, toast, toggle } from '../ui.js'
@@ -31,8 +32,10 @@ const html = () => `<div class="round">
 	<div class="round-main">
 		<section class="stage" data-stage>
 			<video playsinline muted preload="auto" class="${state.camera.rotation === 180 ? 'rot' : ''}"></video>
-			<div class="osd tl"><span class="badge rec" data-mode>GRABADO</span><span class="osd-name">${esc(state.camera.name)}</span></div>
+			<div class="osd tl"><span class="badge rec" data-mode>GRABADO</span><span class="osd-name">${esc(state.camera.name)}</span><span class="badge ghost mono" data-res hidden></span></div>
 			<div class="osd tr mono" data-clock></div>
+			${zoomControls()}
+			<button class="bar-btn stage-full" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
 			<div class="gap-veil" data-veil hidden><span class="veil-ico" data-veil-ico></span><b data-veil-title></b><span data-veil-sub></span><button class="btn small" type="button" data-skip>Saltar el hueco ${I.next}</button></div>
 		</section>
 		<aside class="card rail-card" data-side><p class="empty-s">Cargando la ronda…</p></aside>
@@ -342,6 +345,19 @@ const mount = main => {
 		}
 		if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') seek(state.t + (e.key === 'ArrowLeft' ? -10 : 10))
 	}
+	const stage = main.querySelector('[data-stage]')
+	const lens = attachZoom(stage, () => [video], { rotated: () => state.camera.rotation === 180, onChange: s => zoomLabel(stage, s), ignore: 'button, a, .zoom-ctl, .gap-veil' })
+	const onMeta = () => {
+		const res = main.querySelector('[data-res]')
+		res.hidden = !video.videoHeight
+		res.textContent = video.videoHeight >= 1000 ? '1080p' : `${video.videoHeight}p`
+	}
+	video.addEventListener('loadedmetadata', onMeta)
+	const onZoomClick = e => {
+		if (zoomClick(e, lens)) return
+		if (e.target.closest('[data-full]')) (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen?.())?.catch?.(() => {})
+	}
+	stage.addEventListener('click', onZoomClick)
 	video.addEventListener('ended', onEnded)
 	main.addEventListener('click', onClick)
 	main.addEventListener('segment', onSeg)
@@ -363,6 +379,9 @@ const mount = main => {
 		main.removeEventListener('segment', onSeg)
 		main.removeEventListener('switch', onSwitch)
 		document.removeEventListener('keydown', onKey)
+		stage.removeEventListener('click', onZoomClick)
+		lens.destroy()
+		if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {})
 	}
 }
 

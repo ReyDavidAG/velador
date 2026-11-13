@@ -350,12 +350,11 @@ public sealed class VisionService(
 		{
 			using var lease = await reader.NextAsync(ct);
 			if (lease is null) return;
-			var frame = lease.Frame;
-			var now = frame.CapturedMs;
+			var now = lease.CapturedMs;
 			var active = IsFollowing(v.Camera.Id) || v.Busy || now - lastPersonMs < ActiveForMs;
 			if (v.Busy || IsFollowing(v.Camera.Id))
 			{
-				v.LastGray = frame.Gray(GrayWidth, GrayHeight);
+				v.LastGray = lease.Frame.Gray(GrayWidth, GrayHeight);
 				v.LastGrayMs = now;
 				var tcs = v.NextFrame;
 				v.NextFrame = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -363,6 +362,7 @@ public sealed class VisionService(
 			}
 			if (!active && now - lastDetectMs < IdleFrameMs) continue;
 			lastDetectMs = now;
+			var frame = lease.Frame;
 			v.Status = "running";
 			var tracks = tracker.Update(detector.Detect(frame), now);
 			v.Tracks = tracks;

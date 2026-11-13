@@ -21,8 +21,8 @@ public static class Endpoints
 		api.MapManagement();
 		api.MapTapo();
 		api.MapVision();
-		api.MapPost("/cameras/{id}/live", (string id, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, context, settings, media));
-		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, context, settings, media));
+		api.MapPost("/cameras/{id}/live", (string id, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, stream, context, settings, media));
+		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, stream, context, settings, media));
 	}
 
 	static IResult Summary(EngineSettings settings, Storage storage, EngineDatabase database, ContinuityService continuity, RecordingControl recording, MediaSupervisor supervisor, TimeProvider time)
@@ -149,14 +149,15 @@ public static class Endpoints
 		return file is null ? Results.NotFound() : Results.File(file, "video/mp4", enableRangeProcessing: true);
 	}
 
-	static async Task Whep(string id, string? session, HttpContext context, EngineSettings settings, MediaMtxClient media)
+	static async Task Whep(string id, string? session, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media)
 	{
-		if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || (session is not null && !Guid.TryParse(session, out _)))
+		var path = stream is null or Camera.MainStream ? Camera.MainStream : stream == Camera.MinorStream ? Camera.MinorStream : null;
+		if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || path is null || (session is not null && !Guid.TryParse(session, out _)))
 		{
 			context.Response.StatusCode = StatusCodes.Status404NotFound;
 			return;
 		}
-		var target = $"{media.WebRtc}/{camera.MediaPath(Camera.MainStream)}/whep{(session is null ? "" : $"/{session}")}";
+		var target = $"{media.WebRtc}/{camera.MediaPath(path)}/whep{(session is null ? "" : $"/{session}")}";
 		using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method), target);
 		if (!HttpMethods.IsDelete(context.Request.Method))
 		{
@@ -167,7 +168,7 @@ public static class Endpoints
 		using var upstream = await media.SendAsync(request, context.RequestAborted);
 		context.Response.StatusCode = (int)upstream.StatusCode;
 		if (upstream.Headers.Location is { } location)
-			context.Response.Headers.Location = $"/api/cameras/{id}/live/{location.OriginalString.TrimEnd('/').Split('/')[^1]}";
+			context.Response.Headers.Location = $"/api/cameras/{id}/live/{location.OriginalString.TrimEnd('/').Split('/')[^1]}?stream={path}";
 		if (upstream.Headers.ETag is { } tag) context.Response.Headers.ETag = tag.ToString();
 		if (upstream.Content.Headers.ContentType is { } contentType) context.Response.ContentType = contentType.ToString();
 		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);

@@ -303,3 +303,34 @@ public static class PeopleGrouping
 		return best;
 	}
 }
+
+public static class Yuv
+{
+	public static void ToBgr(byte[] i420, int width, int height, byte[] bgr)
+	{
+		var uPlane = width * height;
+		var vPlane = uPlane + uPlane / 4;
+		var half = width / 2;
+		Parallel.For(0, height / 2, pair =>
+		{
+			for (var dy = 0; dy < 2; dy++)
+			{
+				var y = pair * 2 + dy;
+				var row = y * width;
+				var chroma = pair * half;
+				for (var x = 0; x < width; x++)
+				{
+					var c = 298 * (i420[row + x] - 16);
+					var d = i420[uPlane + chroma + x / 2] - 128;
+					var e = i420[vPlane + chroma + x / 2] - 128;
+					var t = (row + x) * 3;
+					bgr[t] = Clamp((c + 516 * d + 128) >> 8);
+					bgr[t + 1] = Clamp((c - 100 * d - 208 * e + 128) >> 8);
+					bgr[t + 2] = Clamp((c + 409 * e + 128) >> 8);
+				}
+			}
+		});
+	}
+
+	static byte Clamp(int v) => (byte)(v < 0 ? 0 : v > 255 ? 255 : v);
+}

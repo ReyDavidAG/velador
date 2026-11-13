@@ -443,3 +443,36 @@ public class WindowsTests
 		guard.KeepAwake(false);
 	}
 }
+
+public class KnownNetworkTests
+{
+	[Fact]
+	public void Only_the_three_most_recent_networks_are_kept_and_one_per_network()
+	{
+		List<KnownNetwork> known = [];
+		foreach (var (id, seen) in new[] { ("casa", 1L), ("oficina", 2L), ("rancho", 3L), ("casa", 4L), ("hotel", 5L) })
+			known = KnownNetworks.Remember(known, new KnownNetwork(id, id, $"10.0.0.{seen}", seen));
+
+		Assert.Equal(["hotel", "casa", "rancho"], known.Select(k => k.Id));
+		Assert.Equal("10.0.0.4", KnownNetworks.HostFor(known, "casa"));
+		Assert.Null(KnownNetworks.HostFor(known, "oficina"));
+	}
+
+	[Theory]
+	[InlineData("? (192.168.1.1) at e0:d3:62:e:98:84 on en0 ifscope [ethernet]", "e0:d3:62:0e:98:84")]
+	[InlineData("Interface: 192.168.1.20 --- 0x5\n  Internet Address      Physical Address      Type\n  192.168.1.1           E0-D3-62-0E-98-84     dynamic", "e0:d3:62:0e:98:84")]
+	[InlineData("? (192.168.1.1) at (incomplete) on en0", null)]
+	public void The_router_is_recognized_by_its_hardware_address(string arp, string? mac)
+	{
+		Assert.Equal(mac, KnownNetworks.MacFrom(arp.Replace("\\n", "\n"), "192.168.1.1"));
+	}
+
+	[Theory]
+	[InlineData("Current Wi-Fi Network: Casa Aguila", "Casa Aguila")]
+	[InlineData("    Name : Wi-Fi\n    SSID : Oficina 5G\n    BSSID : aa:bb:cc:dd:ee:ff", "Oficina 5G")]
+	[InlineData("You are not associated with an AirPort network.", null)]
+	public void The_wifi_name_is_read_on_both_systems(string output, string? name)
+	{
+		Assert.Equal(name, KnownNetworks.SsidFrom(output.Replace("\\n", "\n")));
+	}
+}

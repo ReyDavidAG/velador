@@ -1,5 +1,3 @@
-use std::process::Command;
-
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -7,7 +5,7 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::engine::Summary;
-use crate::{nav, text};
+use crate::{nav, platform, text};
 
 pub struct Tray {
     status: MenuItem<Wry>,
@@ -47,8 +45,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
     TrayIconBuilder::with_id("velador")
-        .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-        .icon_as_template(true)
+        .icon(tray_icon()?)
+        .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Velador")
         .menu(&menu)
         .show_menu_on_left_click(true)
@@ -58,14 +56,20 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+fn tray_icon() -> tauri::Result<Image<'static>> {
+    #[cfg(target_os = "macos")]
+    let bytes: &[u8] = include_bytes!("../icons/tray.png");
+    #[cfg(not(target_os = "macos"))]
+    let bytes: &[u8] = include_bytes!("../icons/32x32.png");
+    Image::from_bytes(bytes)
+}
+
 fn on_menu(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         "open" => crate::show_window(app),
         "browser" => {
             if let Ok(token) = crate::engine::read_token(&crate::engine::state_dir()) {
-                let _ = Command::new("/usr/bin/open")
-                    .arg(nav::entry(&token).as_str())
-                    .spawn();
+                platform::open_external(nav::entry(&token).as_str());
             }
         }
         "login" => {

@@ -1,6 +1,7 @@
 mod alerts;
 mod engine;
 mod nav;
+mod platform;
 mod text;
 mod tray;
 
@@ -8,9 +9,9 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
+use tauri::WindowEvent;
 use tauri::async_runtime::spawn_blocking;
 use tauri::webview::NewWindowResponse;
-use tauri::{ActivationPolicy, RunEvent, WindowEvent};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
@@ -35,8 +36,9 @@ async fn engine_status(window: WebviewWindow) -> bool {
 }
 
 #[tauri::command]
-async fn start_engine() -> Result<(), String> {
-    spawn_blocking(engine::start)
+async fn start_engine(app: AppHandle) -> Result<(), String> {
+    let resources = app.path().resource_dir().ok();
+    spawn_blocking(move || engine::start(resources.as_deref()))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -69,7 +71,8 @@ fn state_flags() -> StateFlags {
 }
 
 pub fn show_window(app: &AppHandle) {
-    let _ = app.set_activation_policy(ActivationPolicy::Regular);
+    platform::dock(app, true);
+    #[cfg(target_os = "macos")]
     let _ = app.show();
     if let Ok(window) = open_window(app) {
         let _ = window.show();
@@ -95,7 +98,7 @@ fn hide_window(window: &tauri::Window) {
     let app = window.app_handle();
     let _ = app.save_window_state(state_flags());
     let _ = window.hide();
-    let _ = app.set_activation_policy(ActivationPolicy::Accessory);
+    platform::dock(app, false);
 }
 
 fn main() {
@@ -123,7 +126,7 @@ fn main() {
             app.manage(alerts::Alerts(Mutex::new(alerts::GapWatch::default())));
             tray::build(app.handle())?;
             if std::env::args().any(|a| a == HIDDEN) {
-                app.set_activation_policy(ActivationPolicy::Accessory);
+                platform::dock(app.handle(), false);
             } else {
                 show_window(app.handle());
             }
@@ -133,8 +136,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building Velador");
     app.run(|app, event| {
-        if let RunEvent::Reopen { .. } = event {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
             show_window(app);
         }
+        let _ = (app, &event);
     });
 }

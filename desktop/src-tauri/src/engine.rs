@@ -1,13 +1,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::nav;
+use crate::{nav, platform};
 
+#[cfg(target_os = "macos")]
 const LABEL: &str = "com.reydavidag.velador.engine";
+#[cfg(windows)]
+const TASK: &str = r"Velador\Engine";
 pub const NOT_INSTALLED: &str = "not-installed";
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -45,15 +47,22 @@ pub struct Summary {
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("HOME")
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(PathBuf::from)
         .unwrap_or_default()
 }
 
 pub fn state_dir() -> PathBuf {
-    std::env::var_os("VELADOR_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("Library/Application Support/Velador"))
+    if let Some(dir) = std::env::var_os("VELADOR_HOME") {
+        return PathBuf::from(dir);
+    }
+    if cfg!(windows) {
+        return std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home().join("AppData").join("Roaming"))
+            .join("Velador");
+    }
+    home().join("Library/Application Support/Velador")
 }
 
 pub fn read_token(dir: &Path) -> Result<String, String> {
@@ -91,33 +100,69 @@ pub fn alive() -> bool {
     summary().is_ok()
 }
 
-pub fn agent_plist() -> PathBuf {
-    home()
-        .join("Library/LaunchAgents")
-        .join(format!("{LABEL}.plist"))
+pub fn bundled_engine(resources: Option<&Path>) -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "Velador.Engine.exe"
+    } else {
+        "Velador.Engine"
+    };
+    let path = resources?.join("engine").join(name);
+    path.exists().then_some(path)
 }
 
-fn launchctl(args: &[&str]) -> bool {
-    Command::new("/bin/launchctl")
-        .args(args)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-pub fn start() -> Result<(), String> {
-    let plist = agent_plist();
-    if !plist.exists() {
+fn install_bundled(resources: Option<&Path>) -> Result<(), String> {
+    let Some(engine) = bundled_engine(resources) else {
         return Err(NOT_INSTALLED.into());
+    };
+    match platform::quiet(&engine.to_string_lossy())
+        .arg("install")
+        .status()
+    {
+        Ok(status) if status.success() => Ok(()),
+        Ok(_) => Err("El motor no pudo registrarse para arrancar con la sesión".into()),
+        Err(e) => Err(e.to_string()),
     }
+}
+
+#[cfg(target_os = "macos")]
+pub fn start(resources: Option<&Path>) -> Result<(), String> {
+    let plist = home()
+        .join("Library/LaunchAgents")
+        .join(format!("{LABEL}.plist"));
+    if !plist.exists() {
+        return install_bundled(resources);
+    }
+    let run = |args: &[&str]| {
+        platform::quiet("/bin/launchctl")
+            .args(args)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
     let domain = format!("gui/{}", unsafe { libc::getuid() });
     let service = format!("{domain}/{LABEL}");
-    if launchctl(&["kickstart", &service])
-        || launchctl(&["bootstrap", &domain, &plist.to_string_lossy()])
-    {
+    if run(&["kickstart", &service]) || run(&["bootstrap", &domain, &plist.to_string_lossy()]) {
         return Ok(());
     }
     Err("launchctl no pudo arrancar el motor".into())
+}
+
+#[cfg(windows)]
+pub fn start(resources: Option<&Path>) -> Result<(), String> {
+    let ran = platform::quiet("schtasks.exe")
+        .args(["/Run", "/TN", TASK])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if ran {
+        return Ok(());
+    }
+    install_bundled(resources)
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn start(resources: Option<&Path>) -> Result<(), String> {
+    install_bundled(resources)
 }
 
 #[cfg(test)]
@@ -150,6 +195,14 @@ mod tests {
         assert!(read_token(&dir_with(None)).is_err());
         assert!(read_token(&dir_with(Some("   "))).is_err());
         assert!(read_token(&dir_with(Some(&"z<".repeat(24)))).is_err());
+    }
+
+    #[test]
+    fn sin_motor_empaquetado_dice_que_no_esta_instalado() {
+        let dir = dir_with(None);
+        assert_eq!(bundled_engine(Some(&dir)), None);
+        assert_eq!(bundled_engine(None), None);
+        assert_eq!(install_bundled(Some(&dir)).unwrap_err(), NOT_INSTALLED);
     }
 
     #[test]

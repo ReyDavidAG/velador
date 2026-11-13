@@ -1,6 +1,6 @@
-use std::process::Command;
-
 use tauri::Url;
+
+use crate::platform;
 
 pub fn port() -> u16 {
     std::env::var("VELADOR_PORT")
@@ -47,7 +47,7 @@ pub fn guard(url: &Url) -> bool {
         return true;
     }
     if opens_outside(url) {
-        let _ = Command::new("/usr/bin/open").arg(url.as_str()).spawn();
+        platform::open_external(url.as_str());
     }
     #[cfg(debug_assertions)]
     eprintln!("[velador] navegación bloqueada: {url}");

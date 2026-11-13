@@ -1,0 +1,11 @@
+CLAUDE.local.md
+docs/local/
+.DS_Store
+bin/
+obj/
+node_modules/
+desktop/src-tauri/target/
+*.db
+*.db-*
+.env
+.env.*

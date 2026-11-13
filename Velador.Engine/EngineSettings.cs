@@ -78,6 +78,12 @@ public sealed class EnginePaths
 		return File.Exists(file) ? file : null;
 	}
 
+	public static string? FaceModel()
+	{
+		var file = Environment.GetEnvironmentVariable("VELADOR_FACE_MODEL") ?? Path.Combine(AppContext.BaseDirectory, "models", "face_yunet.onnx");
+		return File.Exists(file) ? file : null;
+	}
+
 	public string Sightings => Path.Combine(Home, "sightings");
 
 	public static string? WebRoot()

@@ -3,15 +3,18 @@ import { DAYS, dateKey, dayAgo, state } from '../store.js'
 import { clockAt, confirmOnce, dateLabel, dayLabel, esc, I, segment, toast } from '../ui.js'
 
 const shot = (s, cls = '') => `<img class="${cls}" src="${api.sightingUrl(s.id)}" alt="" loading="lazy" decoding="async" />`
+const face = (s, cls = '') => `<img class="${cls}" src="${api.faceUrl(s.id)}" alt="" loading="lazy" decoding="async" />`
+const best = s => (s.face ? face(s, 'face') : shot(s))
 
 const card = (p, i) => {
-	const cover = p.sightings.find(s => s.id === p.coverId) ?? p.sightings[0]
+	const body = p.sightings.find(s => s.id === p.coverId) ?? p.sightings[0]
+	const portrait = p.sightings.find(s => s.id === p.faceId)
 	const times = p.sightings.length
 	return `<article class="person-card animate-tile-in" style="--i:${i}">
-		<button class="person-cover" type="button" data-at="${cover.startMs}" title="Ver en la ronda">${shot(cover)}<span class="badge kind person">${I.person}${times === 1 ? 'Una vez' : `${times} veces`}</span></button>
+		<button class="person-cover${portrait ? ' has-face' : ''}" type="button" data-at="${body.startMs}" title="Ver en la ronda">${shot(body)}${portrait ? face(portrait, 'cover-face') : ''}<span class="badge kind person">${I.person}${times === 1 ? 'Una vez' : `${times} veces`}</span></button>
 		<div class="person-b">
 			<b class="mono">${clockAt(p.firstMs)}${p.lastMs - p.firstMs > 60000 ? ` – ${clockAt(p.lastMs)}` : ''}</b>
-			<div class="person-strip">${p.sightings.map(s => `<button type="button" data-at="${s.startMs}" title="${clockAt(s.startMs)} · ver en la ronda">${shot(s)}<span class="mono">${clockAt(s.startMs)}</span></button>`).join('')}</div>
+			<div class="person-strip">${p.sightings.map(s => `<button type="button" data-at="${s.startMs}" title="${clockAt(s.startMs)} · ver en la ronda">${best(s)}<span class="mono">${clockAt(s.startMs)}</span></button>`).join('')}</div>
 			<button class="btn small ghost" type="button" data-forget="${p.id}">${I.close}<span>Olvidar</span></button>
 		</div>
 	</article>`
@@ -20,7 +23,7 @@ const card = (p, i) => {
 const body = (people, day) =>
 	people.length
 		? `<div class="people-grid">${people.map(card).join('')}</div>`
-		: `<div class="empty"><span class="empty-ico">${I.person}</span><b>${day === 0 ? 'Nadie todavía hoy' : 'Nadie ese día'}</b><p>Cuando Velador ve a una persona guarda su mejor foto y la agrupa con las que se le parecen por la ropa. Sirve para el mismo día; no reconoce caras ni identifica a nadie.</p></div>`
+		: `<div class="empty"><span class="empty-ico">${I.person}</span><b>${day === 0 ? 'Nadie todavía hoy' : 'Nadie ese día'}</b><p>Cuando Velador ve a una persona guarda su mejor foto de cuerpo y, si se le ve, de la cara, y la agrupa con las que se le parecen por la ropa. Sirve para el mismo día; no identifica a nadie por su cara.</p></div>`
 
 const days = () => Array.from({ length: DAYS }, (_, i) => [String(i), i < 2 ? dayLabel(dayAgo(i), i) : dateLabel(dayAgo(i))])
 

@@ -604,3 +604,5 @@ label.net { cursor: pointer; }
 .follow-chip.wait { background: rgb(0 0 0 / 0.6); color: #ffc65c; }
 @media (prefers-reduced-motion: reduce) { .box, .person-cover img { transition: none; } }
 @media (max-width: 640px) { .person-card { grid-template-columns: 96px minmax(0, 1fr); } }
+.person-cover .cover-face { position: absolute; right: 6px; top: 6px; width: 46%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 8px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px rgb(0 0 0 / 0.4); }
+.person-strip img.face { object-fit: cover; }

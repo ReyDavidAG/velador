@@ -17,6 +17,8 @@ public static class VisionEndpoints
 		api.MapGet("/cameras/{id}/people", People);
 		api.MapGet("/sightings/{sightingId:long}/image", (long sightingId, EngineDatabase database) =>
 			database.SightingOf(sightingId) is { } s && File.Exists(s.File) ? Results.File(s.File, "image/png") : Results.NotFound());
+		api.MapGet("/sightings/{sightingId:long}/face", (long sightingId, EngineDatabase database) =>
+			database.SightingOf(sightingId) is { Face: { Length: > 0 } face } && File.Exists(face) ? Results.File(face, "image/png") : Results.NotFound());
 		api.MapDelete("/people/{personId:long}", (long personId, EngineDatabase database) =>
 		{
 			foreach (var file in database.RemovePerson(personId))
@@ -45,6 +47,7 @@ public static class VisionEndpoints
 			manualHold = s.ManualHold,
 			targetId = s.TargetId,
 			coasting = s.Coasting,
+			returning = s.Returning,
 			command = new { x = Math.Round(s.Command.X, 2), y = Math.Round(s.Command.Y, 2) },
 			calibration = c is null ? null : new { c.GainX, c.GainY, c.LagS, c.Continuous, c.AtMs },
 			tracks = s.Tracks.Select(t => new { t.Id, x = R(t.Box.X), y = R(t.Box.Y), w = R(t.Box.W), h = R(t.Box.H), score = R(t.Score), seen = t.SeenNow }),
@@ -102,7 +105,8 @@ public static class VisionEndpoints
 			firstMs = p.FirstMs,
 			lastMs = p.LastMs,
 			coverId = p.Sightings.MaxBy(s => s.Score)!.Id,
-			sightings = p.Sightings.Select(s => new { s.Id, startMs = s.StartMs, endMs = s.EndMs }),
+			faceId = p.Sightings.Where(s => !string.IsNullOrEmpty(s.Face)).MaxBy(s => s.Score)?.Id,
+			sightings = p.Sightings.Select(s => new { s.Id, startMs = s.StartMs, endMs = s.EndMs, face = !string.IsNullOrEmpty(s.Face) }),
 		}));
 	}
 }

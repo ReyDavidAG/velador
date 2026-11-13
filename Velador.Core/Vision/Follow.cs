@@ -4,7 +4,7 @@ public sealed record FollowTuning(
 	double GainX = 0.30,
 	double GainY = 0.25,
 	double LagS = 0.8,
-	double HorizonS = 0.3,
+	double HorizonS = 0.0,
 	double SettleS = 1.0,
 	double DeadZoneX = 0.08,
 	double DeadZoneY = 0.15,
@@ -14,8 +14,10 @@ public sealed record FollowTuning(
 	double MinSpeed = 0.12,
 	double TiltBelowHeight = 0.6,
 	double WorldNoise = 0.3,
-	double CoastS = 2.5,
-	double ReacquireDistance = 0.3);
+	double CoastS = 4.0,
+	double ReacquireDistance = 0.3,
+	double SearchSpeed = 0.7,
+	double EdgeOffset = 0.2);
 
 public readonly record struct PtzSpeed(double X, double Y)
 {
@@ -33,6 +35,9 @@ public sealed class FollowController(FollowTuning? tuning = null)
 	int? _targetId;
 	KalmanAxis? _wx, _wy;
 	bool _engagedX, _engagedY;
+	double _lastImageX;
+
+	public long LastTargetMs { get; private set; } = -1;
 
 	public PtzSpeed Command { get; private set; } = PtzSpeed.Zero;
 	public FollowTuning Tuning => _t;
@@ -97,6 +102,7 @@ public sealed class FollowController(FollowTuning? tuning = null)
 		_wx = _wy = null;
 		_engagedX = _engagedY = false;
 		_lastSeenAtMs = -1;
+		_lastImageX = 0;
 	}
 
 	long _lastSeenAtMs = -1;
@@ -113,6 +119,7 @@ public sealed class FollowController(FollowTuning? tuning = null)
 		Coasting = true;
 		_wx.Predict(dt);
 		_wy.Predict(dt);
+		if (Math.Abs(_lastImageX) > _t.EdgeOffset) return new PtzSpeed(Math.Sign(_lastImageX) * _t.SearchSpeed, 0);
 		var (nowX, _) = Travel(nowMs);
 		return new PtzSpeed(Axis(_wx, _t.GainX * nowX, _t.GainX, _t.DeadZoneX, ref _engagedX), 0);
 	}
@@ -139,6 +146,8 @@ public sealed class FollowController(FollowTuning? tuning = null)
 		{
 			_seenMs = target.LastSeenMs;
 			_lastSeenAtMs = nowMs;
+			LastTargetMs = nowMs;
+			_lastImageX = target.Box.Cx - 0.5;
 			_wx.Update(worldX);
 			_wy.Update(worldY);
 		}

@@ -86,9 +86,22 @@ public class FollowTests
 		follow.Step(null, 600);
 		Assert.True(follow.Coasting);
 
-		for (var i = 7; i < 45; i++) follow.Step(null, i * 100);
+		for (var i = 7; i < 55; i++) follow.Step(null, i * 100);
 		Assert.True(follow.Command.IsZero);
 		Assert.False(follow.Coasting);
+	}
+
+	[Theory]
+	[InlineData(0.4, 1)]
+	[InlineData(-0.4, -1)]
+	public void When_the_person_leaves_by_one_side_it_turns_toward_that_side(double offset, int side)
+	{
+		var follow = new FollowController();
+		for (var i = 0; i < 5; i++) follow.Step(new TrackState(1, Box.FromCenter(0.5 + offset, 0.6, 0.1, 0.4), 0, 0, 0.9, true, 0, i * 100), i * 100);
+		for (var i = 5; i < 12; i++) follow.Step(null, i * 100);
+
+		Assert.True(follow.Coasting);
+		Assert.Equal(side, Math.Sign(follow.Command.X));
 	}
 
 	[Theory]

@@ -141,8 +141,8 @@ const mount = main => {
 		followBtn.classList.toggle('lit', v.following)
 		followBtn.querySelector('span').textContent = v.following ? 'Siguiendo' : 'Seguir personas'
 		followChip.hidden = !v.following
-		followChip.classList.toggle('wait', v.manualHold || v.coasting || v.targetId == null)
-		followChip.innerHTML = `${I.person}<span>${v.manualHold ? 'Movimiento manual · retoma en 10 s' : v.coasting ? 'Buscando hacia donde iba' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
+		followChip.classList.toggle('wait', v.manualHold || v.coasting || v.returning || v.targetId == null)
+		followChip.innerHTML = `${I.person}<span>${v.manualHold ? 'Movimiento manual · ésta será la posición de inicio' : v.returning ? 'Regresando a la posición de inicio' : v.coasting ? 'Buscando hacia donde se fue' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
 		const tracks = ready ? v.tracks : []
 		boxes.hidden = !tracks.length || !placeBoxes()
 		if (boxes.hidden) return

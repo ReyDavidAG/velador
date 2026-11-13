@@ -70,8 +70,9 @@ public static class Endpoints
 		});
 	}
 
-	static async Task Media(string id, long startMs, long durationMs, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media)
+	static async Task Media(string id, long startMs, long durationMs, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media, IHostApplicationLifetime lifetime)
 	{
+		using var stop = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
 		var camera = settings.Cameras.FirstOrDefault(c => c.Id == id);
 		var path = stream is null or Camera.MainStream ? Camera.MainStream : stream == Camera.MinorStream ? Camera.MinorStream : null;
 		if (camera is null || path is null || durationMs is <= 0 or > 3_600_000)
@@ -79,12 +80,16 @@ public static class Endpoints
 			context.Response.StatusCode = camera is null ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest;
 			return;
 		}
-		using var upstream = await media.MediaAsync(camera.MediaPath(path), startMs, durationMs / 1000.0, context.RequestAborted);
+		using var upstream = await media.MediaAsync(camera.MediaPath(path), startMs, durationMs / 1000.0, stop.Token);
 		context.Response.StatusCode = upstream.IsSuccessStatusCode ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
 		if (!upstream.IsSuccessStatusCode) return;
 		context.Response.ContentType = "video/mp4";
 		context.Response.Headers.CacheControl = "private, max-age=3600";
-		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+		try
+		{
+			await upstream.Content.CopyToAsync(context.Response.Body, stop.Token);
+		}
+		catch (OperationCanceledException) { }
 	}
 
 	static async Task Whep(string id, string? session, HttpContext context, EngineSettings settings, MediaMtxClient media)

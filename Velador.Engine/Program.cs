@@ -14,6 +14,8 @@ var session = new Session(paths, settings.Port);
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, WebRootPath = Environment.GetEnvironmentVariable("VELADOR_WEB") });
 builder.WebHost.UseUrls($"http://127.0.0.1:{settings.Port}");
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
 builder.Services.AddSingleton(paths);
 builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton(session);

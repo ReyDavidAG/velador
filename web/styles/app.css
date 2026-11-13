@@ -542,3 +542,7 @@ kbd { font: 600 11px var(--mono); padding: 1px 5px; border-radius: 5px; border: 
 
 .shell.bare { grid-template-columns: minmax(0, 1fr); }
 .shell.bare .sidebar, .shell.bare .tabbar, .shell.bare .topbar h1 { display: none; }
+
+.nets { display: grid; gap: 6px; }
+.net { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: var(--r); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.net.on { box-shadow: inset 0 0 0 1.5px var(--span); }

@@ -5,11 +5,12 @@
 ## Dónde vamos
 
 - **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
-- **Windows: pendiente.** El motor y la interfaz son los mismos; faltan la tarea de inicio de sesión, el instalador y probarlo en un equipo real.
+- **Windows: a medias, en `feature/windows` (PR #1).** Compila, se instala como tarea y pasa la prueba sin cámara en un Windows de CI. Falta probarlo en la PC con la cámara. Todo el detalle y los pasos para seguir están en `docs/windows.md`.
+- **Cámara con IP cambiante: hecho.** El motor la reencuentra por su número de serie (probado apuntándolo a una dirección equivocada).
 
 ## Qué falta
 
-1. Windows (lo anterior).
+1. Windows: seguir `docs/windows.md` en la PC.
 2. Probar con uso real: reposo del equipo, corte del WiFi de la cámara, arranque tras reiniciar la Mac, avisos del sistema y el evento de persona.
 3. Identificar la cámara por MAC, causa propia para contraseña rechazada, y firma con Developer ID antes de repartir ejecutables.
 4. Acceso desde el celular por Tailscale y motor en un equipo siempre prendido (fase 6).

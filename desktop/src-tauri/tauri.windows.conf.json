@@ -8,6 +8,7 @@
 		"windows": {
 			"nsis": {
 				"installMode": "currentUser",
+				"installerHooks": "./windows/hooks.nsh",
 				"languages": ["Spanish"]
 			}
 		}

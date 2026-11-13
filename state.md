@@ -6,6 +6,8 @@
 
 - **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
 - **Windows: a medias, en `feature/windows` (PR #1).** Compila, se instala como tarea y pasa la prueba sin cámara en un Windows de CI. Falta probarlo en la PC con la cámara. Todo el detalle y los pasos para seguir están en `docs/windows.md`.
+- **Hasta 3 redes por cámara: hecho, sin probar el cambio físico de red.** Cada red donde Velador ve la cámara queda guardada (se reconoce por el router). Al cambiar de red usa la dirección recordada, y si no hay, la busca por número de serie. Se ven y se olvidan en Cámaras. En macOS el nombre sale como «Red 192.168.1.1» porque el sistema no entrega el nombre del WiFi a un servicio.
+- **Luz de la cámara: no se puede por la vía estándar.** Por ONVIF esta cámara sólo ofrece brillo, contraste, saturación y nitidez; no hay control de luz, infrarrojo ni relevador. Requiere el protocolo privado de Tapo.
 - **Cámara con IP cambiante: hecho.** El motor la reencuentra por su número de serie (probado apuntándolo a una dirección equivocada).
 
 ## Qué falta

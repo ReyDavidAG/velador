@@ -1,6 +1,6 @@
 # Windows · dónde quedó y cómo seguir
 
-Rama `feature/windows` (PR #1 contra `develop`). Última revisión: 2026-11-12.
+El trabajo de Windows ya está unido a `develop`. Última revisión: 2026-11-12.
 
 ## Lo que ya está comprobado en un Windows real (el de GitHub Actions, sin cámara)
 
@@ -24,7 +24,7 @@ Requisitos: SDK de .NET 10, Node 22, Rust (`rustup`), y las herramientas de C++ 
 ```powershell
 git clone https://github.com/ReyDavidAG/velador.git
 cd velador
-git checkout feature/windows
+git checkout develop
 scripts\build_windows.ps1      # publica el motor, baja MediaMTX con suma verificada y arma el instalador
 scripts\smoke_windows.ps1      # prueba sin cámara
 ```

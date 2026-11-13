@@ -47,3 +47,4 @@ $uninstall = Start-Process $engine -ArgumentList 'uninstall' -Wait -PassThru
 Get-Process 'Velador.Engine' -ErrorAction SilentlyContinue | Stop-Process -Force
 if ($uninstall.ExitCode -ne 0) { throw "uninstall terminó con $($uninstall.ExitCode)" }
 Write-Host 'Prueba de humo en Windows: bien.'
+exit 0

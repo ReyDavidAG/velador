@@ -1,4 +1,4 @@
-import { bindRound, gapAt, roundHtml, setCursor } from '../components/round_timeline.js'
+import { bindRound, gapAt, roundHtml, setCursor, setSel } from '../components/round_timeline.js'
 import { api } from '../services/api.js'
 import { loadRound, state } from '../store.js'
 import { CAUSE, dateLabel, dayLabel, esc, I, KIND, pct, segment, span, toast, toggle } from '../ui.js'
@@ -30,7 +30,7 @@ const html = () => `<div class="round">
 	<div class="days" role="group" aria-label="Día" data-days>${Array.from({ length: DAYS }, (_, k) => dayBtn(null, DAYS - 1 - k)).join('')}</div>
 	<div class="round-main">
 		<section class="stage" data-stage>
-			<video playsinline muted preload="auto"></video>
+			<video playsinline muted preload="auto" class="${state.camera.rotation === 180 ? 'rot' : ''}"></video>
 			<div class="osd tl"><span class="badge rec" data-mode>GRABADO</span><span class="osd-name">${esc(state.camera.name)}</span></div>
 			<div class="osd tr mono" data-clock></div>
 			<div class="gap-veil" data-veil hidden><span class="veil-ico" data-veil-ico></span><b data-veil-title></b><span data-veil-sub></span><button class="btn small" type="button" data-skip>Saltar el hueco ${I.next}</button></div>
@@ -43,15 +43,17 @@ const html = () => `<div class="round">
 				<button class="t-btn" type="button" data-nudge="-10" title="Atrás 10 s">${I.back10}<span class="sr-only">Atrás 10 segundos</span></button>
 				<button class="t-btn play" type="button" data-play title="Reproducir (espacio)"><span data-play-ico>${I.play}</span><span class="sr-only">Reproducir o pausar</span></button>
 				<button class="t-btn" type="button" data-nudge="10" title="Adelante 10 s">${I.fwd10}<span class="sr-only">Adelante 10 segundos</span></button>
+				<button class="t-btn" type="button" data-mute title="Sonido">${I.mute}<span class="sr-only">Sonido</span></button>
 			</div>
 			<div class="timecode mono" data-tc>--:--:--</div>
 			${segment('speed', SPEEDS, state.speed, 'Velocidad')}
 			<span class="inline-switch">${toggle('skip', state.skipGaps, 'Saltar huecos')}<span aria-hidden="true">Saltar huecos</span></span>
 			<span class="spacer"></span>
 			${segment('zoom', ZOOMS, 'day', 'Acercamiento')}
-			<button class="btn small" type="button" data-mute>${I.mute}<span>Sonido</span></button>
+			<button class="btn" type="button" data-clip>${I.clips}<span>Recortar</span></button>
 		</div>
 		<div data-rt></div>
+		<div class="clip-bar" data-clipbar hidden></div>
 		<p class="hint">Arrastra para moverte · rueda del ratón para acercar · <kbd>espacio</kbd> reproduce · <kbd>←</kbd> <kbd>→</kbd> 10 s</p>
 	</section>
 </div>`
@@ -69,6 +71,28 @@ const mount = main => {
 	let alive = true
 
 	const spanAt = t => r.spans.find(s => t >= s.start && t < s.end)
+	const clipBar = main.querySelector('[data-clipbar]')
+	const hms = s => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+	const recorded = c => c.to - c.from - r.gaps.reduce((sum, g) => sum + Math.max(0, Math.min(c.to, g.end) - Math.max(c.from, g.start)), 0)
+	const clipInfo = () => {
+		clipBar.hidden = !state.clip
+		main.querySelector('[data-clip]').classList.toggle('on', Boolean(state.clip))
+		if (!state.clip) return
+		const len = recorded(state.clip)
+		clipBar.innerHTML = `<span class="clip-len mono">${hms(len)}</span><span>de <b class="mono">${r.clock(state.clip.from)}</b> a <b class="mono">${r.clock(state.clip.to)}</b>${len < state.clip.to - state.clip.from - 0.5 ? ' · incluye un hueco, que no cuenta' : ''}</span><span class="spacer"></span><button class="btn ghost" type="button" data-clip-cancel>Cancelar</button><button class="btn primary" type="button" data-clip-save ${len < 1 ? 'disabled' : ''}>Guardar recorte</button>`
+	}
+	let peekTimer = 0
+	const peek = e => {
+		clearTimeout(peekTimer)
+		const video = rt?.querySelector('.rt-peek-v')
+		const track = rt?.querySelector('.rt-track')
+		if (!video || !track) return
+		const b = track.getBoundingClientRect()
+		const t = state.win.from + (Math.min(Math.max(0, e.clientX - b.left), b.width) / b.width) * (state.win.to - state.win.from)
+		video.classList.toggle('rot', state.camera.rotation === 180)
+		if (!spanAt(t) || t > r.end - 4) return video.removeAttribute('src')
+		peekTimer = setTimeout(() => (video.src = `${api.mediaUrl(state.camera.id, r.ms(t), 2000, 'minor')}#t=0.3`), 140)
+	}
 
 	const frame = () => {
 		if (!r) return
@@ -109,9 +133,21 @@ const mount = main => {
 	}
 
 	const drawRt = () => {
-		rtHost.innerHTML = roundHtml(r, state.win)
+		rtHost.innerHTML = roundHtml(r, state.win, { clip: state.clip })
 		rt = rtHost.querySelector('.rt')
-		bindRound(rt, { r, win: () => state.win, onSeek: t => seek(t, true), onZoom: (f, at) => zoom((state.win.to - state.win.from) * f, at), getClip: () => null, onClip: () => {} })
+		rt.addEventListener('pointermove', peek)
+		bindRound(rt, {
+			r,
+			win: () => state.win,
+			onSeek: t => seek(t, true),
+			onZoom: (f, at) => zoom((state.win.to - state.win.from) * f, at),
+			getClip: () => state.clip,
+			onClip: c => {
+				state.clip = c
+				setSel(rt, c, state.win)
+				clipInfo()
+			},
+		})
 		const len = Math.round(state.win.to - state.win.from)
 		for (const b of main.querySelectorAll('[data-segment="zoom"] [data-value]')) b.setAttribute('aria-checked', b.dataset.value === 'day' ? len >= Math.round(r.len) : Number(b.dataset.value) === len)
 		frame()
@@ -235,10 +271,12 @@ const mount = main => {
 		} catch {}
 	}, 15000)
 
-	const onClick = e => {
+	const onClick = async e => {
 		const day = e.target.closest('[data-day]')
 		if (day && rounds[Number(day.dataset.day)]) {
 			play(false)
+			state.clip = null
+			clipInfo()
 			state.t = null
 			show(Number(day.dataset.day))
 		}
@@ -253,11 +291,37 @@ const mount = main => {
 			if (g) seek(g.end + 0.05)
 			else if (next) seek(next.start + 0.05)
 		}
+		if (e.target.closest('[data-clip]')) {
+			state.clip = state.clip ? null : { from: Math.max(r.from, state.t - 15), to: Math.min(r.end - 2, state.t + 15) }
+			clipInfo()
+			if (state.clip && state.win.to - state.win.from > 3600) zoom(600, state.t)
+			else drawRt()
+		}
+		if (e.target.closest('[data-clip-cancel]')) {
+			state.clip = null
+			clipInfo()
+			drawRt()
+		}
+		const saveClip = e.target.closest('[data-clip-save]')
+		if (saveClip) {
+			saveClip.disabled = true
+			saveClip.textContent = 'Guardando…'
+			try {
+				await api.addClip(state.camera.id, { startMs: Math.round(r.ms(state.clip.from)), endMs: Math.round(r.ms(state.clip.to)), title: `${state.camera.name} · ${r.clock(state.clip.from)}` })
+				state.clip = null
+				clipInfo()
+				drawRt()
+				toast('Recorte guardado · está en Recortes')
+			} catch (err) {
+				toast(err.message)
+				clipInfo()
+			}
+		}
 		const mute = e.target.closest('[data-mute]')
 		if (mute) {
 			state.muted = !state.muted
 			video.muted = state.muted
-			mute.innerHTML = `${state.muted ? I.mute : I.sound}<span>Sonido</span>`
+			mute.innerHTML = `${state.muted ? I.mute : I.sound}<span class="sr-only">Sonido</span>`
 		}
 	}
 	const onSeg = e => {
@@ -290,6 +354,8 @@ const mount = main => {
 		cancelAnimationFrame(raf)
 		clearInterval(poll)
 		clearTimeout(loadTimer)
+		clearTimeout(peekTimer)
+		state.clip = null
 		state.playing = false
 		video.removeAttribute('src')
 		video.load()

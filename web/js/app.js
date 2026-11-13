@@ -1,11 +1,22 @@
 import { loadSummary, state } from './store.js'
 import { esc, I, NAV, span } from './ui.js'
+import { camerasView } from './views/cameras_view.js'
+import { clipsView } from './views/clips_view.js'
+import { continuityView } from './views/continuity_view.js'
+import { eventsView } from './views/events_view.js'
 import { liveView } from './views/live_view.js'
 import { roundView } from './views/round_view.js'
+import { settingsView } from './views/settings_view.js'
+import { welcomeView } from './views/welcome_view.js'
 
 const ROUTES = {
 	'/': liveView,
 	'/round': roundView,
+	'/events': eventsView,
+	'/clips': clipsView,
+	'/cameras': camerasView,
+	'/continuity': continuityView,
+	'/settings': settingsView,
 }
 
 const path = () => location.hash.slice(1).split('?')[0] || '/'
@@ -62,9 +73,11 @@ const tickGuard = async () => {
 	}
 	const cam = state.camera
 	if (!cam) return
+	if (state.summary.storage?.onFallback) document.querySelector('[data-guard-sub]').dataset.fallback = '1'
+	else delete document.querySelector('[data-guard-sub]').dataset.fallback
 	document.querySelector('[data-guard-top]').lastChild.textContent = LABEL[cam.state] ?? cam.state
 	document.querySelector('[data-guard]').textContent = cam.state === 'on_guard' && cam.guardSinceMs ? since(state.summary.nowMs - cam.guardSinceMs) : '—'
-	document.querySelector('[data-guard-sub]').textContent = cam.state === 'on_guard' ? 'sin huecos' : 'la grabación está detenida'
+	document.querySelector('[data-guard-sub]').textContent = cam.state !== 'on_guard' ? 'la grabación está detenida' : state.summary.storage?.onFallback ? 'sin huecos · en esta Mac, falta el disco' : 'sin huecos'
 }
 
 const gate = message => {
@@ -75,9 +88,9 @@ export const render = () => {
 	cleanup?.()
 	cleanup = null
 	if (!state.summary) return
-	if (!state.camera) return gate('Todavía no hay ninguna cámara configurada.')
 	const p = path()
-	const view = ROUTES[p] ?? liveView
+	const view = state.camera ? (ROUTES[p] ?? liveView) : welcomeView
+	document.querySelector('.shell').classList.toggle('bare', !state.camera)
 	const main = document.getElementById('main')
 	main.innerHTML = `<div class="page animate-page-in">${view.html()}</div>`
 	cleanup = view.mount?.(main) ?? null

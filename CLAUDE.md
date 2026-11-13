@@ -49,7 +49,8 @@ Repo **público** (MIT). Todo corre local: sin nube, sin cuentas, sin telemetrí
 export DOTNET_ROOT=$HOME/.dotnet10 PATH=$HOME/.dotnet10:$PATH
 scripts/fetch_binaries.sh                  # MediaMTX con suma verificada, en tools/
 dotnet test Velador.slnx
-VELADOR_MEDIAMTX=tools/mediamtx/mediamtx dotnet run --project Velador.Engine    # http://127.0.0.1:8352
+VELADOR_WEB=$PWD/web VELADOR_MEDIAMTX=tools/mediamtx/mediamtx dotnet run --project Velador.Engine
+open "http://127.0.0.1:8352/?t=$(cat "$HOME/Library/Application Support/Velador/token")"
 ```
 
 Variables: `VELADOR_HOME` (datos; por omisión la carpeta de datos de la app del sistema), `VELADOR_PORT`, `VELADOR_WEB` (carpeta del front) y `VELADOR_CAMERA_PASSWORD_<ID>` (sólo para desarrollo; en uso real la contraseña sale del llavero). En `VELADOR_HOME` viven `config.json`, `token`, `velador.db` y `mediamtx.yml`. MediaMTX usa los cuatro puertos siguientes al del motor, todos en `127.0.0.1`.

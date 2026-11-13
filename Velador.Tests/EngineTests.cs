@@ -159,3 +159,46 @@ public class EngineDatabaseTests
 		Assert.Equal(2, db.State("last_alive_ms"));
 	}
 }
+
+public class RecordingStoreTests : IDisposable
+{
+	readonly string _root = Directory.CreateTempSubdirectory("velador-rec").FullName;
+
+	public void Dispose() => Directory.Delete(_root, true);
+
+	[Theory]
+	[InlineData("2026-11-12_21-15-09-228278-0600.mp4", 1794539709228)]
+	[InlineData("2026-06-01_00-00-00-000000+0200.mp4", 1780264800000)]
+	public void The_file_name_gives_the_start_in_utc(string name, long expected)
+	{
+		Assert.Equal(expected, RecordingStore.StartOf(name));
+	}
+
+	[Theory]
+	[InlineData("notes.mp4")]
+	[InlineData("2026-13-40_99-00-00-000000-0600.mp4")]
+	public void Foreign_files_are_ignored(string name)
+	{
+		Assert.Null(RecordingStore.StartOf(name));
+	}
+
+	[Fact]
+	public void Segments_are_listed_per_stream_and_only_files_inside_the_root_are_deleted()
+	{
+		Directory.CreateDirectory(Path.Combine(_root, "entradamain"));
+		var file = Path.Combine(_root, "entradamain", "2026-11-12_21-15-09-228278-0600.mp4");
+		File.WriteAllBytes(file, new byte[10]);
+		File.WriteAllText(Path.Combine(_root, "entradamain", "readme.txt"), "x");
+		var outside = Path.Combine(Path.GetTempPath(), $"velador-outside-{Guid.NewGuid():N}.mp4");
+		File.WriteAllText(outside, "x");
+		var store = new RecordingStore(_root);
+
+		var segment = Assert.Single(store.Segments());
+		Assert.Equal(("entradamain", 10L), (segment.Stream, segment.Bytes));
+		store.Delete(segment with { File = outside });
+		Assert.True(File.Exists(outside));
+		store.Delete(segment);
+		Assert.False(File.Exists(file));
+		File.Delete(outside);
+	}
+}

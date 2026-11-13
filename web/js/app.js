@@ -5,6 +5,7 @@ import { clipsView } from './views/clips_view.js'
 import { continuityView } from './views/continuity_view.js'
 import { eventsView } from './views/events_view.js'
 import { liveView } from './views/live_view.js'
+import { peopleView } from './views/people_view.js'
 import { roundView } from './views/round_view.js'
 import { settingsView } from './views/settings_view.js'
 import { welcomeView } from './views/welcome_view.js'
@@ -13,6 +14,7 @@ const ROUTES = {
 	'/': liveView,
 	'/round': roundView,
 	'/events': eventsView,
+	'/people': peopleView,
 	'/clips': clipsView,
 	'/cameras': camerasView,
 	'/continuity': continuityView,

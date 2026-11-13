@@ -36,7 +36,7 @@ const body = s => {
 			${external && !s.volumes.some(v => v.suggested === s.recordingsDir) ? place(s, s.recordingsDir, 'Carpeta elegida', `<span class="mono">${esc(s.recordingsDir)}</span>${s.primaryAvailable ? '' : ' · no está conectada'}`) : ''}
 		</div>
 		${s.volumes.length ? '' : '<p class="muted-s">Conecta un disco externo y aparecerá aquí para elegirlo.</p>'}
-		<form class="form-row" data-custom style="margin-top:10px"><label class="field" style="flex:1;margin:0"><span>Otra carpeta (ruta completa)</span><input name="dir" type="text" placeholder="/Volumes/MiDisco/Velador" spellcheck="false" autocomplete="off" /></label><button class="btn" type="submit">Usar esta</button></form>
+		<form class="form-row" data-custom style="margin-top:10px"><label class="field" style="flex:1;margin:0"><span>Otra carpeta (ruta completa)</span><input name="dir" type="text" placeholder="${/Windows/.test(navigator.userAgent) ? 'D:\\Velador' : '/Volumes/MiDisco/Velador'}" spellcheck="false" autocomplete="off" /></label><button class="btn" type="submit">Usar esta</button></form>
 		<p class="form-error" data-error role="alert"></p>
 		${external ? `<div class="set-row"><div class="set-text"><b>Expulsar el disco sin perder nada</b><small>Velador pasa a grabar en ${HERE} durante 10 minutos para que puedas desconectarlo. Al volver a conectarlo, lo de ${THERE} se pasa al disco.</small></div><div class="set-ctl"><button class="btn small" type="button" data-release ${s.onFallback ? 'disabled' : ''}>Preparar para expulsar</button></div></div>` : ''}
 		${row('Guardar hasta', 'Lo más viejo se borra primero. Los recortes nunca se borran.', stepper('retentionDays', s.retentionDays, 'días'))}
@@ -47,6 +47,12 @@ const body = s => {
 	</section>
 	<section class="card"><header class="card-head"><h2>${I.shield}Grabación sin huecos</h2></header>
 		${row('Mantener el equipo despierto', 'Mientras Velador esté de guardia. La pantalla sí se apaga. Con la tapa cerrada o sin batería el equipo se duerme igual.', toggle('keepAwake', s.keepAwake, 'Mantener el equipo despierto'))}
+	</section>
+	<section class="card"><header class="card-head"><h2>${I.person}Personas</h2><span class="chip" data-vision-chip>…</span></header>
+		${row('Detectar personas', 'Velador mira el stream ligero de la cámara, guarda una foto de cada persona y marca el suceso en la ronda. Todo en este equipo.', toggle('detectPeople', s.detectPeople, 'Detectar personas'))}
+		${row('Calibrar el movimiento', 'Mide cuánto y en qué dirección gira la cámara y el retraso del video, para seguir a las personas y para que las flechas vayan hacia donde dicen. La cámara gira un poco y regresa; tarda unos 30 s.', '<button class="btn small" type="button" data-calibrate>Calibrar</button>')}
+		<p class="muted-s" data-calibration></p>
+		<p class="note">${I.alert}<span>Si usas el seguimiento de Velador, apaga el <b>seguimiento de movimiento</b> en la app Tapo: si los dos mueven la cámara a la vez, se estorban.</span></p>
 	</section>
 	<section class="card"><header class="card-head"><h2>${I.settings}Apariencia</h2></header>
 		${row('Tema', 'El oscuro cansa menos junto al video.', segment('theme', [['dark', 'Oscuro'], ['light', 'Claro']], state.theme, 'Tema'))}
@@ -62,8 +68,9 @@ const mount = main => {
 	const draw = () => (root.innerHTML = body(s))
 	const save = async patch => {
 		try {
-			s = await api.saveSettings({ recordingsDir: s.recordingsDir, retentionDays: s.retentionDays, retentionPercent: s.retentionPercent, keepAwake: s.keepAwake, ...patch })
+			s = await api.saveSettings({ recordingsDir: s.recordingsDir, retentionDays: s.retentionDays, retentionPercent: s.retentionPercent, keepAwake: s.keepAwake, detectPeople: s.detectPeople, ...patch })
 			draw()
+			showVision()
 			return true
 		} catch (err) {
 			draw()
@@ -71,9 +78,29 @@ const mount = main => {
 			return false
 		}
 	}
+	const STATUS = { running: ['good', 'Detectando'], starting: ['', 'Arrancando…'], reconnecting: ['warn', 'Sin imagen, reintentando'], off: ['', 'Apagada'], no_ffmpeg: ['warn', 'Falta FFmpeg'], no_model: ['warn', 'Falta el modelo'], model_error: ['warn', 'El modelo no cargó'] }
+	const showVision = async () => {
+		if (!state.camera) return
+		let v
+		try {
+			v = await api.vision(state.camera.id)
+		} catch {
+			return
+		}
+		const chip = root.querySelector('[data-vision-chip]')
+		if (!chip) return
+		const [cls, label] = STATUS[v.status] ?? ['', v.status]
+		chip.className = `chip ${cls}`
+		chip.textContent = v.status === 'running' ? `${label} · ${v.device === 'gpu' ? 'tarjeta gráfica' : 'procesador'} · ${v.fps} cps` : label
+		const c = v.calibration
+		root.querySelector('[data-calibration]').textContent = c
+			? `Calibrada: gira hasta ${Math.round(c.gainX * 100)} % del ancho de la imagen por segundo; el video llega con ${c.lagS.toFixed(1)} s de retraso${c.continuous ? '' : ' (la cámara sólo acepta pasos, no giro continuo)'}.`
+			: 'Sin calibrar todavía. Se calibra sola la primera vez que actives «Seguir personas».'
+	}
 	const refresh = async () => {
 		s = await api.settings()
 		draw()
+		showVision()
 	}
 	const onClick = async e => {
 		const dir = e.target.closest('[data-dir]')
@@ -92,6 +119,20 @@ const mount = main => {
 			toast('En unos segundos podrás expulsar el disco')
 			setTimeout(refresh, 4000)
 		}
+		const calibrate = e.target.closest('[data-calibrate]')
+		if (calibrate && state.camera) {
+			calibrate.disabled = true
+			calibrate.textContent = 'Calibrando…'
+			try {
+				await api.calibrate(state.camera.id)
+				toast('Listo: la cámara quedó calibrada')
+			} catch (err) {
+				toast(err.message)
+			}
+			calibrate.disabled = false
+			calibrate.textContent = 'Calibrar'
+			showVision()
+		}
 		if (e.target.closest('[data-reclaim]')) {
 			await api.reclaimDisk()
 			setTimeout(refresh, 4000)
@@ -105,6 +146,7 @@ const mount = main => {
 	}
 	const onSwitch = e => {
 		if (e.detail.id === 'keepAwake') save({ keepAwake: e.detail.on })
+		if (e.detail.id === 'detectPeople') save({ detectPeople: e.detail.on })
 	}
 	const onSeg = e => {
 		if (e.detail.id === 'theme' && e.detail.value !== state.theme) document.querySelector('[data-theme-toggle]').click()

@@ -56,6 +56,7 @@ export const NAV = [
 	{ href: '#/', label: 'En vivo', icon: 'live' },
 	{ href: '#/round', label: 'Ronda', icon: 'round' },
 	{ href: '#/events', label: 'Sucesos', icon: 'events' },
+	{ href: '#/people', label: 'Personas', icon: 'person', desktop: true },
 	{ href: '#/clips', label: 'Recortes', icon: 'clips' },
 	{ href: '#/cameras', label: 'Cámaras', icon: 'camera', group: 'Sistema', desktop: true },
 	{ href: '#/continuity', label: 'Continuidad', icon: 'shield', desktop: true },

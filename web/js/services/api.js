@@ -41,4 +41,10 @@ export const api = {
 	removeClip: id => send('DELETE', `/clips/${id}`),
 	revealClip: id => send('POST', `/clips/${id}/reveal`),
 	clipUrl: id => `/api/clips/${id}/file`,
+	vision: cameraId => send('GET', `/cameras/${cameraId}/vision`),
+	follow: (cameraId, follow) => send('PUT', `/cameras/${cameraId}/vision`, { follow }),
+	calibrate: cameraId => send('POST', `/cameras/${cameraId}/vision/calibrate`),
+	people: (cameraId, date) => send('GET', `/cameras/${cameraId}/people?date=${date}`),
+	sightingUrl: id => `/api/sightings/${id}/image`,
+	forgetPerson: id => send('DELETE', `/people/${id}`),
 }

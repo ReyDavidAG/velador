@@ -15,7 +15,7 @@ const groups = rounds =>
 		.filter(g => g.list.length)
 		.map(g => `<section class="ev-group"><header class="group-head"><h2>${esc(dayLabel(g.r.date, g.r.i))}</h2><span class="mono">${esc(dateLabel(g.r.date))}</span><span class="count">${g.list.length}</span></header><div class="ev-grid">${g.list.map((e, i) => card(g.r, e, i)).join('')}</div></section>`)
 		.join('') ||
-	`<div class="empty"><span class="empty-ico">${I.events}</span><b>Sin sucesos en los últimos 7 días</b><p>Los sucesos vienen de la detección de la propia cámara: actívala en la app de la cámara (movimiento y personas) y aparecerán aquí y marcados en la ronda.</p></div>`
+	`<div class="empty"><span class="empty-ico">${I.events}</span><b>Sin sucesos en los últimos 7 días</b><p>Los sucesos vienen de la detección de personas de Velador y de la de la propia cámara (movimiento). Aparecen aquí y marcados en la ronda.</p></div>`
 
 const html = () => `<div class="events">
 	<div class="toolbar">${segment('filter', [['all', 'Todos'], ['person', 'Personas'], ['motion', 'Movimiento']], state.filter, 'Tipo de suceso')}</div>

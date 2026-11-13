@@ -165,7 +165,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 
 ### 3 · Web
 
-- [ ] El prototipo aprobado pasa a `web/` contra la API real: En vivo (WebRTC + PTZ) y Ronda (video por tramo, arrastre, zoom, recorte que cae en cuadro clave y lo dice).
+- [x] En vivo por WebRTC y Ronda (video por rango, arrastre, zoom, saltar huecos, velocidad) en `web/` contra la API real, con las tipografías empaquetadas.
+- [ ] PTZ en vivo, recorte, vista previa al pasar el cursor (necesita miniaturas) y sucesos en la ronda.
 - [ ] Recortes, Cámaras, Continuidad, Ajustes y Bienvenida (con el permiso de Red local de macOS).
 - [ ] Calendario para ir más allá de la última semana; pausar la guardia; borrar un día o un tramo.
 - [ ] Todos los estados de la guardia, no sólo el feliz.

@@ -29,6 +29,8 @@ builder.Services.AddSingleton<MediaSupervisor>();
 builder.Services.AddSingleton<ContinuityService>();
 builder.Services.AddHostedService(s => s.GetRequiredService<MediaSupervisor>());
 builder.Services.AddHostedService(s => s.GetRequiredService<ContinuityService>());
+builder.Services.AddSingleton<IRecordingStore>(new RecordingStore(paths.Recordings(settings)));
+builder.Services.AddHostedService<RetentionService>();
 
 var app = builder.Build();
 app.UseSession(session);

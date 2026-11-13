@@ -20,3 +20,14 @@ curl -fsSL -o "$WORK/checksums.sha256" "$BASE/checksums.sha256"
 mkdir -p "$DEST"
 tar -xzf "$WORK/$ASSET" -C "$DEST" mediamtx LICENSE
 echo "MediaMTX $VERSION en $DEST/mediamtx"
+
+MODELS="$(cd "$(dirname "$0")/.." && pwd)/tools/models"
+MODEL_SHA="427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7"
+if [ ! -f "$MODELS/yolox_tiny.onnx" ]; then
+	mkdir -p "$MODELS"
+	curl -fsSL -o "$WORK/yolox_tiny.onnx" "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx"
+	echo "$MODEL_SHA  $WORK/yolox_tiny.onnx" | shasum -a 256 -c -
+	mv "$WORK/yolox_tiny.onnx" "$MODELS/yolox_tiny.onnx"
+fi
+echo "Modelo de personas en $MODELS/yolox_tiny.onnx"
+command -v ffmpeg >/dev/null || echo "Para detectar personas en macOS instala FFmpeg: brew install ffmpeg"

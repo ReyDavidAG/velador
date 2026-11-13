@@ -8,6 +8,7 @@
     IfFileExists "$INSTDIR\engine\Velador.Engine.exe" 0 velador_stop_done
     Delete "$INSTDIR\engine\Velador.Engine.exe"
     Delete "$INSTDIR\engine\mediamtx.exe"
+    Delete "$INSTDIR\engine\ffmpeg\avcodec-63.dll"
     IfErrors 0 velador_stop_done
     IntOp $R9 $R9 + 1
     IntCmp $R9 20 velador_stop_done

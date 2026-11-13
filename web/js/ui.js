@@ -46,12 +46,18 @@ export const I = {
 	sleep: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/><path d="M14 4h4l-4 4h4"/>'),
 	power: svg('<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>'),
 	engine: svg('<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'),
+	close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
 	arrow: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
 }
 
 export const NAV = [
 	{ href: '#/', label: 'En vivo', icon: 'live' },
 	{ href: '#/round', label: 'Ronda', icon: 'round' },
+	{ href: '#/events', label: 'Sucesos', icon: 'events' },
+	{ href: '#/clips', label: 'Recortes', icon: 'clips' },
+	{ href: '#/cameras', label: 'Cámaras', icon: 'camera', group: 'Sistema', desktop: true },
+	{ href: '#/continuity', label: 'Continuidad', icon: 'shield', desktop: true },
+	{ href: '#/settings', label: 'Ajustes', icon: 'settings' },
 ]
 
 const p2 = n => String(Math.floor(n)).padStart(2, '0')
@@ -105,3 +111,19 @@ export const segment = (id, options, value, label = '') =>
 	`<div class="segment" role="radiogroup" aria-label="${esc(label)}" data-segment="${id}">${options
 		.map(([v, l]) => `<button type="button" role="radio" aria-checked="${String(v) === String(value)}" tabindex="${String(v) === String(value) ? 0 : -1}" data-value="${v}">${esc(l)}</button>`)
 		.join('')}</div>`
+
+export const bytes = n => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1)} GB` : `${(n / 1024 ** 2).toFixed(1)} MB`)
+
+export const confirmOnce = (button, label = '¿Seguro?') => {
+	if (button.dataset.armed) return true
+	button.dataset.armed = '1'
+	const before = button.innerHTML
+	button.innerHTML = `<span>${label}</span>`
+	button.classList.add('danger-armed')
+	setTimeout(() => {
+		delete button.dataset.armed
+		button.classList.remove('danger-armed')
+		button.innerHTML = before
+	}, 3000)
+	return false
+}

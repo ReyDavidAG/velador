@@ -35,13 +35,14 @@ const guardHtml = () => {
 const html = () => `<div class="live-grid">
 	<div class="live-main">
 		<section class="stage" data-stage>
-			<video autoplay playsinline muted></video>
+			<video autoplay playsinline muted class="${state.camera.rotation === 180 ? 'rot' : ''}"></video>
 			<div class="osd tl"><span class="badge live" data-badge><i class="dot pulse"></i>EN VIVO</span><span class="osd-name">${esc(state.camera.name)}</span></div>
 			<div class="osd tr mono" data-clock></div>
 			<div class="stage-note" data-note><b>Conectando con la cámara…</b></div>
 			<div class="stage-bar">
 				<button class="bar-btn" type="button" data-mute title="Sonido">${I.mute}<span class="sr-only">Sonido</span></button>
 				<span class="spacer"></span>
+				<button class="bar-btn text" type="button" data-save>${I.clips}<span>Guardar los últimos 30 s</span></button>
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
 			</div>
 		</section>
@@ -103,7 +104,19 @@ const mount = main => {
 		move(...dir)
 	}
 	document.addEventListener('keydown', onKey)
-	const onClick = e => {
+	const onClick = async e => {
+		const save = e.target.closest('[data-save]')
+		if (save) {
+			save.disabled = true
+			try {
+				const end = Date.now() - 3000
+				await api.addClip(state.camera.id, { startMs: end - 30000, endMs: end, title: `${state.camera.name} · últimos 30 s` })
+				toast('Recorte de 30 s guardado en Recortes')
+			} catch (err) {
+				toast(err.message)
+			}
+			save.disabled = false
+		}
 		const ptz = e.target.closest('[data-ptz]')
 		if (ptz) move(...ptz.dataset.ptz.split(',').map(Number))
 		if (e.target.closest('[data-mute]')) {

@@ -52,6 +52,13 @@ public sealed partial class OnvifClient(HttpClient http, Camera camera, string p
 		return _profile;
 	}
 
+	public async Task<string> ModelAsync(CancellationToken ct)
+	{
+		var xml = XDocument.Parse(await CallAsync($"http://{camera.Host}:{camera.OnvifPort}/onvif/device_service", "<GetDeviceInformation xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>", TimeSpan.FromSeconds(6), ct));
+		string Field(string name) => xml.Descendants().FirstOrDefault(e => e.Name.LocalName == name)?.Value ?? "";
+		return $"{Field("Model")} · firmware {Field("FirmwareVersion")}".Trim(' ', '·');
+	}
+
 	public async Task<PanTilt?> PositionAsync(CancellationToken ct)
 	{
 		var profile = await ProfileAsync(ct);

@@ -5,11 +5,13 @@ using Velador.Engine.Sqlite;
 
 namespace Velador.Engine.MediaMtx;
 
-public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, MediaPorts ports, MediaMtxClient client, ISecretStore secrets, EngineDatabase database, TimeProvider time, ILogger<MediaSupervisor> log)
+public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, Storage storage, MediaPorts ports, MediaMtxClient client, ISecretStore secrets, EngineDatabase database, TimeProvider time, ILogger<MediaSupervisor> log)
 	: BackgroundService
 {
 	Process? _process;
 	bool _ranBefore;
+	GapCause _restartCause = GapCause.Engine;
+	int _configured;
 
 	public bool Adopted { get; private set; }
 	public bool Missing { get; private set; }
@@ -18,6 +20,8 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	{
 		Adopted = await client.PathsAsync(ct) is not null;
 		_ranBefore = Adopted;
+		if (Adopted) storage.Activate();
+		_configured = Signature();
 		await base.StartAsync(ct);
 	}
 
@@ -25,7 +29,14 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	{
 		while (!ct.IsCancellationRequested)
 		{
-			if (settings.Cameras.Count > 0 && !IsRunning() && await client.PathsAsync(ct) is null && !ct.IsCancellationRequested) Start();
+			var running = IsRunning();
+			if (running && (storage.Desired != storage.Active || Signature() != _configured))
+			{
+				_restartCause = storage.Desired != storage.Active ? GapCause.Disk : GapCause.Update;
+				Restart();
+				running = false;
+			}
+			if (settings.Cameras.Count > 0 && !running && await client.PathsAsync(ct) is null && !ct.IsCancellationRequested) Start();
 			await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}
@@ -43,6 +54,8 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 		Kill();
 	}
 
+	int Signature() => settings.Revision;
+
 	bool IsRunning() => _process is { HasExited: false } || OwnedPid() is not null;
 
 	void Start()
@@ -53,8 +66,8 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 			log.LogError("Media server binary not found at {Path}", paths.MediaBinary);
 			return;
 		}
-		var recordings = paths.Recordings(settings);
-		Directory.CreateDirectory(recordings);
+		var recordings = storage.Activate();
+		_configured = Signature();
 		File.WriteAllText(paths.MediaConfig, MediaMtxConfig.Build(ports, recordings, settings.Cameras));
 		var info = new ProcessStartInfo(paths.MediaBinary, [paths.MediaConfig])
 		{
@@ -70,9 +83,15 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 		if (_ranBefore)
 		{
 			var now = time.GetUtcNow().ToUnixTimeMilliseconds();
-			foreach (var camera in settings.Cameras) database.OpenGap(camera.Id, new RecordedGap(now - 2000, null, GapCause.Engine));
+			foreach (var camera in settings.Cameras) database.OpenGap(camera.Id, new RecordedGap(now - 2000, null, _restartCause));
 		}
 		_ranBefore = true;
+		_restartCause = GapCause.Engine;
+		if (!storage.OnFallback) _ = Task.Run(() =>
+		{
+			var moved = storage.Relocate();
+			if (moved > 0) log.LogInformation("Moved {Count} recordings back to the external disk", moved);
+		});
 		File.WriteAllText(paths.MediaPid, _process.Id.ToString());
 		_process.OutputDataReceived += (_, e) => Forward(e.Data);
 		_process.ErrorDataReceived += (_, e) => Forward(e.Data);

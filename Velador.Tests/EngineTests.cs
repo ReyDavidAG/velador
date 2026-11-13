@@ -252,3 +252,131 @@ public class OnvifTests
 		Assert.Equal(9000, db.EventsIn("entrada", new TimeRange(0, 10_000))[1].EndMs);
 	}
 }
+
+public class StorageTests : IDisposable
+{
+	readonly string _root = Directory.CreateTempSubdirectory("velador-storage").FullName;
+
+	public void Dispose() => Directory.Delete(_root, true);
+
+	sealed class Clock : TimeProvider
+	{
+		public DateTimeOffset Now = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+
+		public override DateTimeOffset GetUtcNow() => Now;
+	}
+
+	[Fact]
+	public void Without_an_external_folder_everything_stays_in_the_default_one()
+	{
+		var fallback = Path.Combine(_root, "internal");
+		var storage = new Storage(new EngineSettings(), fallback, TimeProvider.System);
+
+		Assert.False(storage.UsesExternal);
+		Assert.Equal(fallback, storage.Activate());
+		Assert.False(storage.OnFallback);
+	}
+
+	[Fact]
+	public void A_missing_volume_falls_back_to_the_internal_folder()
+	{
+		var fallback = Path.Combine(_root, "internal");
+		var storage = new Storage(new EngineSettings { RecordingsDir = OperatingSystem.IsWindows() ? @"Q:\Velador" : "/Volumes/NoExisteVelador/Velador" }, fallback, TimeProvider.System);
+
+		Assert.True(storage.UsesExternal);
+		Assert.False(storage.PrimaryAvailable);
+		Assert.Equal(fallback, storage.Activate());
+		Assert.True(storage.OnFallback);
+	}
+
+	[Fact]
+	public void Releasing_the_disk_switches_to_the_internal_folder_for_a_while()
+	{
+		var clock = new Clock();
+		var external = Path.Combine(_root, "external");
+		var storage = new Storage(new EngineSettings { RecordingsDir = external }, Path.Combine(_root, "internal"), clock);
+
+		Assert.Equal(external, storage.Activate());
+		storage.Release(TimeSpan.FromMinutes(10));
+		Assert.NotEqual(external, storage.Desired);
+		clock.Now = clock.Now.AddMinutes(11);
+		Assert.Equal(external, storage.Desired);
+	}
+
+	[Fact]
+	public void What_was_recorded_inside_goes_back_to_the_external_disk()
+	{
+		var fallback = Path.Combine(_root, "internal");
+		var external = Path.Combine(_root, "external");
+		Directory.CreateDirectory(Path.Combine(fallback, "entradamain"));
+		var stray = Path.Combine(fallback, "entradamain", "2026-11-12_21-15-09-228278-0600.mp4");
+		File.WriteAllText(stray, "video");
+		var storage = new Storage(new EngineSettings { RecordingsDir = external }, fallback, TimeProvider.System);
+		storage.Activate();
+
+		Assert.Equal(1, storage.Relocate());
+		Assert.False(File.Exists(stray));
+		Assert.Equal("video", File.ReadAllText(Path.Combine(external, "entradamain", "2026-11-12_21-15-09-228278-0600.mp4")));
+		Assert.Equal(0, storage.Relocate());
+	}
+
+	[Theory]
+	[InlineData("/Volumes/KINGSTON/Velador", "/Volumes/KINGSTON")]
+	[InlineData("/Volumes/Mi Disco/a/b", "/Volumes/Mi Disco")]
+	[InlineData("/Users/yo/Movies/Velador", null)]
+	public void The_mount_point_of_an_external_path_is_its_volume(string path, string? mount)
+	{
+		if (OperatingSystem.IsWindows()) return;
+		Assert.Equal(mount, Storage.MountPoint(path));
+	}
+}
+
+public class DiscoveryAndClipTests
+{
+	[Fact]
+	public void Discovery_replies_give_the_camera_address_and_port()
+	{
+		var reply = "<d:XAddrs>http://192.168.1.16:2020/onvif/device_service http://[fe80::1]:2020/onvif/device_service</d:XAddrs><d:XAddrs>http://10.0.0.7/onvif/device_service</d:XAddrs>";
+
+		Assert.Equal([new FoundCamera("192.168.1.16", 2020), new FoundCamera("10.0.0.7", 80)], Discovery.Parse(reply));
+		Assert.Empty(Discovery.Parse("<x>http://evil.example/onvif/</x>"));
+	}
+
+	[Fact]
+	public void Clips_are_listed_newest_first_and_removed_by_id()
+	{
+		using var db = new EngineDatabase(":memory:");
+		var first = db.AddClip("entrada", new TimeRange(1000, 31_000), "Uno", "/tmp/a.mp4", 10, 100);
+		var second = db.AddClip("entrada", new TimeRange(5000, 9000), "Dos", "/tmp/b.mp4", 20, 200);
+
+		Assert.Equal(["Dos", "Uno"], db.Clips().Select(c => c.Title));
+		db.RemoveClip(second.Id);
+		Assert.Equal(first, Assert.Single(db.Clips()));
+	}
+
+	[Fact]
+	public void Signals_a_few_seconds_apart_are_one_event()
+	{
+		using var db = new EngineDatabase(":memory:");
+		db.OpenEvent("entrada", EventKind.Motion, 1000);
+		db.CloseEvent("entrada", EventKind.Motion, 3000);
+		db.OpenEvent("entrada", EventKind.Motion, 8000);
+		db.CloseEvent("entrada", EventKind.Motion, 9000);
+		db.OpenEvent("entrada", EventKind.Motion, 40_000);
+
+		var events = db.EventsIn("entrada", new TimeRange(0, 100_000));
+		Assert.Equal(2, events.Count);
+		Assert.Equal((1000L, 9000L), (events[0].StartMs, events[0].EndMs!.Value));
+	}
+
+	[Fact]
+	public void The_last_event_is_the_most_recent_one()
+	{
+		using var db = new EngineDatabase(":memory:");
+		Assert.Null(db.LastEvent("entrada"));
+		db.OpenEvent("entrada", EventKind.Motion, 1000);
+		db.OpenEvent("entrada", EventKind.Person, 5000);
+
+		Assert.Equal(EventKind.Person, db.LastEvent("entrada")!.Kind);
+	}
+}

@@ -59,7 +59,6 @@ Variables: `VELADOR_HOME` (datos; por omisión la carpeta de datos de la app del
 
 ```bash
 scripts/install_macos.sh        # publica el motor, lo registra como servicio y deja Velador.app en /Applications
-printf '%s\n' '<contraseña>' | "$HOME/Library/Application Support/Velador/engine/<versión>/Velador.Engine" camera set entrada Entrada <ip> <usuario>
 ```
 
 El motor queda como LaunchAgent `com.reydavidag.velador.engine`, con sus datos en `~/Library/Application Support/Velador` y las grabaciones en `~/Movies/Velador`. `Velador.Engine uninstall` lo quita sin borrar grabaciones. La app (`desktop/`) se revisa con `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test` dentro de `desktop/src-tauri`.

@@ -6,17 +6,28 @@ const gathered = pc =>
 		setTimeout(resolve, 2000)
 	})
 
+const received = async pc => {
+	let bytes = 0
+	for (const report of (await pc.getStats()).values()) if (report.type === 'inbound-rtp') bytes += report.bytesReceived ?? 0
+	return bytes
+}
+
 export const watchLive = (cameraId, video, onState) => {
 	let pc = null
 	let session = null
 	let retry = 0
 	let closed = false
+	let lastBytes = -1
+	let stalls = 0
+	let hiddenAt = 0
 
 	const stop = () => {
 		if (session) fetch(session, { method: 'DELETE', credentials: 'same-origin' }).catch(() => {})
 		session = null
 		pc?.close()
 		pc = null
+		lastBytes = -1
+		stalls = 0
 	}
 
 	const again = () => {
@@ -28,39 +39,71 @@ export const watchLive = (cameraId, video, onState) => {
 	}
 
 	async function connect() {
-		if (closed) return
+		if (closed || pc || document.visibilityState === 'hidden') return
+		const mine = new RTCPeerConnection()
+		pc = mine
 		try {
-			pc = new RTCPeerConnection()
-			pc.addTransceiver('video', { direction: 'recvonly' })
-			pc.addTransceiver('audio', { direction: 'recvonly' })
-			pc.addEventListener('track', e => {
-				if (video.srcObject !== e.streams[0]) video.srcObject = e.streams[0]
+			mine.addTransceiver('video', { direction: 'recvonly' })
+			mine.addTransceiver('audio', { direction: 'recvonly' })
+			mine.addEventListener('track', e => {
+				if (pc === mine && video.srcObject !== e.streams[0]) video.srcObject = e.streams[0]
 			})
-			pc.addEventListener('connectionstatechange', () => {
-				if (pc?.connectionState === 'connected') onState('live')
-				if (pc && ['failed', 'disconnected', 'closed'].includes(pc.connectionState)) again()
+			mine.addEventListener('connectionstatechange', () => {
+				if (pc !== mine) return
+				if (mine.connectionState === 'connected') onState('live')
+				if (['failed', 'disconnected', 'closed'].includes(mine.connectionState)) again()
 			})
-			await pc.setLocalDescription(await pc.createOffer())
-			await gathered(pc)
+			await mine.setLocalDescription(await mine.createOffer())
+			await gathered(mine)
 			const response = await fetch(`/api/cameras/${cameraId}/live`, {
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/sdp' },
-				body: pc.localDescription.sdp,
+				body: mine.localDescription.sdp,
 			})
 			if (!response.ok) throw new Error(`whep ${response.status}`)
+			if (pc !== mine) return
 			session = response.headers.get('Location')
-			await pc.setRemoteDescription({ type: 'answer', sdp: await response.text() })
+			await mine.setRemoteDescription({ type: 'answer', sdp: await response.text() })
 		} catch {
-			again()
+			if (pc === mine) again()
 		}
 	}
+
+	const pulse = setInterval(async () => {
+		if (closed || !pc || pc.connectionState !== 'connected') return
+		const mine = pc
+		const bytes = await received(mine).catch(() => -1)
+		if (pc !== mine) return
+		stalls = bytes > lastBytes ? 0 : stalls + 1
+		lastBytes = bytes
+		if (stalls >= 2) again()
+	}, 3000)
+
+	const onVisible = () => {
+		if (closed) return
+		if (document.visibilityState === 'hidden') {
+			hiddenAt = Date.now()
+			return
+		}
+		if (!pc) connect()
+	}
+	const idle = setInterval(() => {
+		if (!closed && pc && document.visibilityState === 'hidden' && Date.now() - hiddenAt > 60000) {
+			stop()
+			onState('connecting')
+		}
+	}, 10000)
+	document.addEventListener('visibilitychange', onVisible)
 
 	onState('connecting')
 	connect()
 	return () => {
 		closed = true
 		clearTimeout(retry)
+		clearInterval(pulse)
+		clearInterval(idle)
+		document.removeEventListener('visibilitychange', onVisible)
 		stop()
 		video.srcObject = null
 	}

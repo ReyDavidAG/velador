@@ -85,7 +85,7 @@ public sealed class ContinuityService(
 			foreach (var camera in settings.Cameras)
 			{
 				database.OpenGap(camera.Id, slept);
-				_dogs[camera.Id].Resync(now);
+				if (_dogs.TryGetValue(camera.Id, out var dog)) dog.Resync(now);
 			}
 		}
 		if (now - _lastBeatMs >= Outage.HeartbeatMs || now < _lastBeatMs)
@@ -97,16 +97,17 @@ public sealed class ContinuityService(
 
 	async Task WatchAsync(CancellationToken ct)
 	{
+		power.KeepAwake(settings.KeepAwake && settings.Cameras.Count > 0);
 		if (settings.Cameras.Count == 0) return;
 		var paths = await media.PathsAsync(ct);
 		var restart = false;
-		foreach (var camera in settings.Cameras)
+		foreach (var camera in settings.Cameras.ToList())
 		{
 			var path = paths?.FirstOrDefault(p => p.Name == camera.MediaPath(Camera.MainStream));
 			var online = path?.Online ?? false;
 			_online[camera.Id] = online;
 			if (online && path!.InboundBytes > 0 && database.State(WatchedSince(camera.Id)) is null) database.SetState(WatchedSince(camera.Id), Now);
-			var dog = _dogs[camera.Id];
+			if (!_dogs.TryGetValue(camera.Id, out var dog)) dog = _dogs[camera.Id] = new Watchdog();
 			var stalled = dog.InGap || !online;
 			var cameraUp = !stalled || await reachability.CameraAsync(camera.Host, camera.RtspPort, ct);
 			var gatewayUp = cameraUp || await reachability.GatewayAsync(ct);

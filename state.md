@@ -4,9 +4,15 @@
 
 ## Dónde vamos
 
-- **Fase 0 · Propuesta: aprobada** (2026-11-12).
-- **Fase 1 · Verificación: hecha**, salvo lo que necesita la ventana de Tauri y una corrida larga.
-- **Fase 2 · Motor: en curso.** Graba, vigila y sirve la ronda y el video; faltan retención, alta de cámaras, PTZ, sucesos y recortes.
+- **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
+- **Windows: pendiente.** El motor y la interfaz son los mismos; faltan la tarea de inicio de sesión, el instalador y probarlo en un equipo real.
+
+## Qué falta
+
+1. Windows (lo anterior).
+2. Probar con uso real: reposo del equipo, corte del WiFi de la cámara, arranque tras reiniciar la Mac, avisos del sistema y el evento de persona.
+3. Identificar la cámara por MAC, causa propia para contraseña rechazada, y firma con Developer ID antes de repartir ejecutables.
+4. Acceso desde el celular por Tailscale y motor en un equipo siempre prendido (fase 6).
 
 ## Hecho
 
@@ -53,6 +59,19 @@
 - Cliente ONVIF propio en el motor (WS-Security probado con el vector de ejemplo del estándar). Mover la cámara por la API funciona con la cámara real: giró y regresó a la posición exacta.
 - Sucesos: suscripción PullPoint con renovación, guardados en SQLite y entregados en la ronda. El lector de mensajes sigue el formato del estándar (`IsMotion`, `IsPeople`, `IsTamper`), **no** un mensaje capturado de esta cámara: en dos intentos no emitió ninguno. Hay que confirmarlo con movimiento real frente a la cámara.
 - 67 pruebas en verde.
+
+## Cierre de la 0.1.0 (2026-11-12)
+
+- Disco externo con respaldo en la Mac, probado con un volumen real de prueba: elegirlo, grabar ahí, soltarlo y expulsarlo sin forzar, reconectarlo (regresa y se lleva lo de la Mac) y desconectarlo de golpe (pasa a la Mac en 3 s). No se probó con el disco físico del usuario, que no estaba conectado.
+- Alta, edición, prueba y baja de cámaras desde la app, con búsqueda en la red y giro de imagen de 180°.
+- Recortes (desde la Ronda con asas y «últimos 30 s» en vivo), Sucesos, Continuidad, Ajustes y Bienvenida.
+- Vista previa al pasar el cursor en la ronda y miniaturas de sucesos, pedidas por rango al stream ligero.
+- La cámara emitió eventos reales de movimiento: el lector quedó confirmado. Se unen los que llegan a menos de 10 s para no llenar la lista.
+- Aviso del sistema por persona en la app de escritorio.
+- El vivo se cura solo: si deja de llegar video 6 s (medido por las estadísticas de la conexión), reconecta. Probado en la ventana real cortando la sesión desde el servidor: volvió en 9 s. Con la ventana oculta más de un minuto, suelta la conexión y la retoma al volver.
+- Durante las pruebas hubo dos ocasiones en que el vivo de la ventana se cayó sin recuperarse; no se pudo reproducir después (estuvo estable varios minutos al frente, detrás y oculta). El vigilante anterior cubre ese caso, pero la causa no quedó identificada.
+- 78 pruebas del motor y 14 de la app. Todas las pantallas recorridas en WebKit sin errores y sin desbordes.
+- La imagen de la cámara sale de cabeza porque así está montada; conviene invertirla en la app de la cámara (así el texto de la hora queda derecho) o con el giro de Velador.
 
 ## Repositorio
 

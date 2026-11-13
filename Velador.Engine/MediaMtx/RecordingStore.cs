@@ -10,8 +10,12 @@ public interface IRecordingStore
 	void Delete(StoredSegment segment);
 }
 
-public sealed class RecordingStore(string root) : IRecordingStore
+public sealed class RecordingStore(Func<string> rootOf) : IRecordingStore
 {
+	public RecordingStore(string root) : this(() => root) { }
+
+	string root => rootOf();
+
 	public const string NameFormat = "yyyy-MM-dd_HH-mm-ss-ffffffzzz";
 
 	public IReadOnlyList<StoredSegment> Segments()
@@ -19,7 +23,7 @@ public sealed class RecordingStore(string root) : IRecordingStore
 		if (!Directory.Exists(root)) return [];
 		var segments = new List<StoredSegment>();
 		foreach (var file in new DirectoryInfo(root).EnumerateFiles("*.mp4", SearchOption.AllDirectories))
-			if (StartOf(file.Name) is { } start)
+			if (file.Directory!.Parent?.Name != "clips" && file.Directory.Name != "clips" && StartOf(file.Name) is { } start)
 				segments.Add(new StoredSegment(file.FullName, file.Directory!.Name, start, file.Length));
 		return segments;
 	}

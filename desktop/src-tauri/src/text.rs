@@ -69,6 +69,7 @@ mod tests {
             state: state.into(),
             gap,
             guard_since_ms: since,
+            last_event: None,
         }
     }
 

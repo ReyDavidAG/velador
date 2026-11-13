@@ -19,12 +19,21 @@ pub struct OpenGap {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct LastEvent {
+    pub id: i64,
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Camera {
     pub id: String,
     pub name: String,
     pub state: String,
     pub gap: Option<OpenGap>,
     pub guard_since_ms: Option<i64>,
+    #[serde(default)]
+    pub last_event: Option<LastEvent>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

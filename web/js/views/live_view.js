@@ -41,6 +41,7 @@ const html = () => `<div class="live-grid">
 			<div class="stage-note" data-note><b>Conectando con la cámara…</b></div>
 			<div class="stage-bar">
 				<button class="bar-btn" type="button" data-mute title="Sonido">${I.mute}<span class="sr-only">Sonido</span></button>
+				<button class="bar-btn text" type="button" data-light hidden aria-pressed="false">${I.bulb}<span>Luz</span></button>
 				<span class="spacer"></span>
 				<button class="bar-btn text" type="button" data-save>${I.clips}<span>Guardar los últimos 30 s</span></button>
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
@@ -82,6 +83,14 @@ const mount = main => {
 		main.querySelector('[data-mini]').innerHTML = roundHtml(round, undefined, { mini: true })
 		setCursor(main.querySelector('[data-mini] .rt'), round.end, { from: 0, to: round.len }, round)
 	}
+	const lightBtn = main.querySelector('[data-light]')
+	const showLight = on => {
+		lightBtn.hidden = false
+		lightBtn.setAttribute('aria-pressed', on)
+		lightBtn.classList.toggle('lit', on)
+		lightBtn.querySelector('span').textContent = on ? 'Luz encendida' : 'Luz'
+	}
+	api.extras(state.camera.id).then(x => alive && showLight(x.light.on)).catch(() => {})
 	clock()
 	refresh()
 	const tick = setInterval(clock, 1000)
@@ -116,6 +125,15 @@ const mount = main => {
 				toast(err.message)
 			}
 			save.disabled = false
+		}
+		if (e.target.closest('[data-light]')) {
+			lightBtn.disabled = true
+			try {
+				showLight((await api.light(state.camera.id, lightBtn.getAttribute('aria-pressed') !== 'true')).on)
+			} catch (err) {
+				toast(err.message)
+			}
+			lightBtn.disabled = false
 		}
 		const ptz = e.target.closest('[data-ptz]')
 		if (ptz) move(...ptz.dataset.ptz.split(',').map(Number))

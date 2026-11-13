@@ -144,7 +144,8 @@ Tres proyectos, no cinco: para este tamaño, `Application` e `Infrastructure` ap
 Hecha el 2026-11-12 (`docs/verification.md`): streams, códecs, peso, CPU, sesiones simultáneas, MediaMTX grabando los dos streams, video por rango, vivo por WebRTC en Chrome, corte a la fuerza, fugas de contraseña, puertos, PTZ y eventos por ONVIF.
 
 - [x] Decisiones 5, 7 y 10 cerradas con datos.
-- [ ] WebRTC y audio PCM dentro de la ventana de Tauri, en WKWebView y WebView2 (cierra la decisión 6). Se hace con la ventana mínima de la Fase 4 o antes con Safari.
+- [x] macOS: el vivo por WebRTC conecta dentro de la ventana, y WebKit reproduce la grabación con su audio PCM siempre que el video se sirva con rangos (por eso el motor lo pasa por una caché en disco). Decisión 6 cerrada para macOS.
+- [ ] Lo mismo en WebView2 (Windows).
 - [ ] Corrida de 2 h o más y corte del WiFi de la cámara: en cuánto vuelve MediaMTX por su cuenta.
 - [ ] En la app Tapo: «Auto Reboot» y modo privacidad.
 
@@ -174,7 +175,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 
 ### 4 · Escritorio
 
-- [ ] Tauri 2 para macOS (aarch64) y Windows (x64): ventana con candado de navegación, página de respaldo, bandeja, avisos, inicio con la sesión.
+- [x] Tauri 2 para macOS (aarch64): ventana con candado de navegación, página de respaldo, bandeja con el estado, avisos de hueco y de regreso, inicio con la sesión. Instalador `scripts/install_macos.sh`.
+- [ ] Lo mismo para Windows (x64): tarea de inicio de sesión, instalador y prueba en un equipo real.
 - [ ] El instalador copia motor, MediaMTX y FFmpeg a `<datos>/engine/<versión>/` y el LaunchAgent o la tarea apuntan ahí: actualizar es detener, cambiar el puntero y arrancar. En Windows es tarea de inicio de sesión, no servicio (necesita el Credential Manager del usuario).
 - [ ] Firma: ad-hoc mientras cada quien compile; Developer ID, notarización y firma de los binarios anidados antes de publicar ejecutables.
 - [ ] `THIRD_PARTY_NOTICES.md`: MIT de MediaMTX y LGPL de FFmpeg (binario sin modificar, enlace a su fuente).

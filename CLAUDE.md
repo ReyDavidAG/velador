@@ -55,6 +55,15 @@ open "http://127.0.0.1:8352/?t=$(cat "$HOME/Library/Application Support/Velador/
 
 Variables: `VELADOR_HOME` (datos; por omisión la carpeta de datos de la app del sistema), `VELADOR_PORT`, `VELADOR_WEB` (carpeta del front) y `VELADOR_CAMERA_PASSWORD_<ID>` (sólo para desarrollo; en uso real la contraseña sale del llavero). En `VELADOR_HOME` viven `config.json`, `token`, `velador.db` y `mediamtx.yml`. MediaMTX usa los cuatro puertos siguientes al del motor, todos en `127.0.0.1`.
 
+### Instalar en macOS
+
+```bash
+scripts/install_macos.sh        # publica el motor, lo registra como servicio y deja Velador.app en /Applications
+printf '%s\n' '<contraseña>' | "$HOME/Library/Application Support/Velador/engine/<versión>/Velador.Engine" camera set entrada Entrada <ip> <usuario>
+```
+
+El motor queda como LaunchAgent `com.reydavidag.velador.engine`, con sus datos en `~/Library/Application Support/Velador` y las grabaciones en `~/Movies/Velador`. `Velador.Engine uninstall` lo quita sin borrar grabaciones. La app (`desktop/`) se revisa con `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test` dentro de `desktop/src-tauri`.
+
 ### Ver el prototipo
 
 ```bash

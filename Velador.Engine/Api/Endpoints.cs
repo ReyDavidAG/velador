@@ -51,8 +51,9 @@ public static class Endpoints
 		if (!TryZone(tz, out var zone)) return Results.BadRequest();
 		var window = Days.Bounds(day, zone);
 		var now = time.GetUtcNow().ToUnixTimeMilliseconds();
-		var spans = await media.SpansAsync(camera.MediaPath(Camera.MainStream), window, ct);
-		var round = RoundBuilder.Build(window, now, spans, database.GapsIn(id, window), database.State(ContinuityService.WatchedSince(id)) ?? now);
+		var watchedSince = database.State(ContinuityService.WatchedSince(id)) ?? now;
+		IReadOnlyList<TimeRange> spans = watchedSince >= window.EndMs || window.StartMs > now ? [] : await media.SpansAsync(camera.MediaPath(Camera.MainStream), window, ct);
+		var round = RoundBuilder.Build(window, now, spans, database.GapsIn(id, window), watchedSince);
 		return Results.Ok(new
 		{
 			date,

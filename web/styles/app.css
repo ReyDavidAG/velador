@@ -186,6 +186,20 @@ kbd { font: 600 11px var(--mono); padding: 1px 5px; border-radius: 5px; border: 
 .pad button { display: grid; place-items: center; color: var(--muted); border-radius: 50%; transition: color 0.15s, transform 0.1s; }
 .pad button:hover { color: var(--ink); }
 .pad button:active { transform: scale(0.85); color: var(--brand); }
+.pad button.held { transform: scale(0.85); color: var(--brand); }
+.pad button { touch-action: none; user-select: none; -webkit-user-select: none; }
+.stage-pad { display: none; }
+.live-grid .stage:fullscreen { border-radius: 0; max-height: none; aspect-ratio: auto; width: 100%; height: 100%; }
+.stage:fullscreen .stage-pad { position: absolute; right: 24px; bottom: 76px; z-index: 2; display: grid; grid-template: repeat(3, 48px) / repeat(3, 48px); width: 144px; height: 144px; background: rgb(0 0 0 / 0.45); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16); backdrop-filter: blur(8px); }
+.stage:fullscreen .stage-pad button { color: rgb(255 255 255 / 0.8); }
+.stage:fullscreen .stage-pad button:hover { color: #fff; }
+.stage:fullscreen .stage-pad button.held, .stage:fullscreen .stage-pad button:active { color: var(--brand); }
+.stage:fullscreen .stage-pad svg { width: 22px; height: 22px; }
+.stage:fullscreen .stage-pad .pad-c { background: rgb(0 0 0 / 0.35); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16); }
+.stage:fullscreen .stage-bar, .stage:fullscreen .stage-pad, .stage:fullscreen .osd, .stage:fullscreen::before { transition: opacity 0.3s; }
+.stage.idle:fullscreen { cursor: none; }
+.stage.idle:fullscreen .stage-bar, .stage.idle:fullscreen .stage-pad, .stage.idle:fullscreen .osd.tl, .stage.idle:fullscreen::before { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .stage:fullscreen .stage-bar, .stage:fullscreen .stage-pad, .stage:fullscreen .osd, .stage:fullscreen::before { transition: none; } }
 .pad .u { grid-area: 1 / 2; } .pad .l { grid-area: 2 / 1; } .pad .r { grid-area: 2 / 3; } .pad .d { grid-area: 3 / 2; }
 .pad-c { grid-area: 2 / 2; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
 .pad-c i { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); transition: transform 0.5s var(--ease); }

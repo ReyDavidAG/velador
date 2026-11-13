@@ -73,6 +73,7 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 		{
 			WorkingDirectory = paths.Home,
 			UseShellExecute = false,
+			CreateNoWindow = true,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
 		};

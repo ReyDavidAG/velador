@@ -6,14 +6,15 @@ import { CAUSE, esc, I, pct, span, toast } from '../ui.js'
 
 const GB = 1024 ** 3
 const LEGEND = `<span class="legend"><span><i class="sw span"></i>Grabado</span><span><i class="sw gapp"></i>Hueco</span><span><i class="sw person"></i>Persona</span><span><i class="sw motion"></i>Movimiento</span></span>`
+const PAD_KEYS = `<button type="button" data-ptz="0,1" class="u" title="Arriba">${I.up}<span class="sr-only">Arriba</span></button>
+	<button type="button" data-ptz="-1,0" class="l" title="Izquierda">${I.left}<span class="sr-only">Izquierda</span></button>
+	<span class="pad-c" aria-hidden="true"><i></i></span>
+	<button type="button" data-ptz="1,0" class="r" title="Derecha">${I.right}<span class="sr-only">Derecha</span></button>
+	<button type="button" data-ptz="0,-1" class="d" title="Abajo">${I.down}<span class="sr-only">Abajo</span></button>`
 const PAD = `<header class="card-head"><h2>Mover la cámara</h2></header>
-	<div class="ptz"><div class="pad">
-		<button type="button" data-ptz="0,1" class="u" title="Arriba">${I.up}<span class="sr-only">Arriba</span></button>
-		<button type="button" data-ptz="-1,0" class="l" title="Izquierda">${I.left}<span class="sr-only">Izquierda</span></button>
-		<span class="pad-c" aria-hidden="true"><i></i></span>
-		<button type="button" data-ptz="1,0" class="r" title="Derecha">${I.right}<span class="sr-only">Derecha</span></button>
-		<button type="button" data-ptz="0,-1" class="d" title="Abajo">${I.down}<span class="sr-only">Abajo</span></button>
-	</div><p class="muted-s">Cada toque gira un poco. También con las flechas del teclado.</p></div>`
+	<div class="ptz"><div class="pad">${PAD_KEYS}</div><p class="muted-s">Un toque gira un poco; mantenlo presionado para seguir girando. También con las flechas del teclado.</p></div>`
+const STEP_PAUSE_MS = 120
+const IDLE_MS = 3000
 const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'] }
 
 const guardHtml = () => {
@@ -46,6 +47,7 @@ const html = () => `<div class="live-grid">
 				<button class="bar-btn text" type="button" data-save>${I.clips}<span>Guardar los últimos 30 s</span></button>
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
 			</div>
+			<div class="pad stage-pad" role="group" aria-label="Mover la cámara">${PAD_KEYS}</div>
 		</section>
 		<section class="card today">
 			<header class="card-head"><h2>Ronda de hoy</h2>${LEGEND}<a class="link" href="#/round">Abrir la ronda ${I.arrow}</a></header>
@@ -97,22 +99,78 @@ const mount = main => {
 	const poll = setInterval(refresh, 5000)
 	let moving = false
 	const move = async (x, y) => {
-		if (moving) return
+		if (moving) return true
 		moving = true
 		try {
 			await api.move(state.camera.id, x * 0.08, y * 0.08)
+			return true
 		} catch {
 			toast('La cámara no respondió al movimiento')
+			return false
+		} finally {
+			moving = false
 		}
-		moving = false
 	}
-	const onKey = e => {
-		const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]
-		if (!dir || e.target.closest('input, [role="radio"]')) return
+	let held = null
+	const hold = async dir => {
+		held = dir
+		while (held === dir && alive) {
+			if (!(await move(...dir))) break
+			if (held !== dir) break
+			await new Promise(r => setTimeout(r, STEP_PAUSE_MS))
+		}
+		if (held === dir) held = null
+	}
+	const release = () => {
+		held = null
+		main.querySelectorAll('[data-ptz].held').forEach(b => b.classList.remove('held'))
+	}
+	const dirOf = b => b.dataset.ptz.split(',').map(Number)
+	const onPointerDown = e => {
+		const b = e.target.closest('[data-ptz]')
+		if (!b || e.button !== 0) return
 		e.preventDefault()
-		move(...dir)
+		b.classList.add('held')
+		hold(dirOf(b))
+	}
+	const KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
+	const onKey = e => {
+		const dir = KEYS[e.key]
+		if (!dir || e.target.closest('input, textarea, [role="radio"], [role="slider"]')) return
+		e.preventDefault()
+		if (!e.repeat) hold(dir)
+	}
+	const onKeyUp = e => {
+		if (KEYS[e.key]) release()
+	}
+	const fullBtn = main.querySelector('[data-full]')
+	const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen?.())?.catch?.(() => {})
+	let idleTimer = 0
+	const wake = () => {
+		stage.classList.remove('idle')
+		clearTimeout(idleTimer)
+		if (document.fullscreenElement === stage) idleTimer = setTimeout(() => !held && stage.classList.add('idle'), IDLE_MS)
+	}
+	const onFullChange = () => {
+		const full = document.fullscreenElement === stage
+		const label = full ? 'Salir de pantalla completa' : 'Pantalla completa'
+		fullBtn.title = label
+		fullBtn.innerHTML = `${full ? I.shrink : I.full}<span class="sr-only">${label}</span>`
+		wake()
+	}
+	const onDblClick = e => {
+		if (e.target.closest('button, .stage-pad')) return
+		toggleFull()
 	}
 	document.addEventListener('keydown', onKey)
+	document.addEventListener('keyup', onKeyUp)
+	document.addEventListener('fullscreenchange', onFullChange)
+	window.addEventListener('pointerup', release)
+	window.addEventListener('pointercancel', release)
+	window.addEventListener('blur', release)
+	main.addEventListener('pointerdown', onPointerDown)
+	stage.addEventListener('pointermove', wake)
+	stage.addEventListener('dblclick', onDblClick)
 	const onClick = async e => {
 		const save = e.target.closest('[data-save]')
 		if (save) {
@@ -136,13 +194,13 @@ const mount = main => {
 			lightBtn.disabled = false
 		}
 		const ptz = e.target.closest('[data-ptz]')
-		if (ptz) move(...ptz.dataset.ptz.split(',').map(Number))
+		if (ptz && e.detail === 0) move(...dirOf(ptz))
 		if (e.target.closest('[data-mute]')) {
 			state.muted = !state.muted
 			video.muted = state.muted
 			e.target.closest('[data-mute]').innerHTML = `${state.muted ? I.mute : I.sound}<span class="sr-only">Sonido</span>`
 		}
-		if (e.target.closest('[data-full]')) (document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen?.())?.catch?.(() => {})
+		if (e.target.closest('[data-full]')) toggleFull()
 		const track = e.target.closest('[data-mini] .rt-track')
 		if (track && round) {
 			const b = track.getBoundingClientRect()
@@ -156,8 +214,17 @@ const mount = main => {
 		alive = false
 		clearInterval(tick)
 		clearInterval(poll)
+		held = null
+		clearTimeout(idleTimer)
 		stopLive()
+		if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {})
 		document.removeEventListener('keydown', onKey)
+		document.removeEventListener('keyup', onKeyUp)
+		document.removeEventListener('fullscreenchange', onFullChange)
+		window.removeEventListener('pointerup', release)
+		window.removeEventListener('pointercancel', release)
+		window.removeEventListener('blur', release)
+		main.removeEventListener('pointerdown', onPointerDown)
 		main.removeEventListener('click', onClick)
 	}
 }

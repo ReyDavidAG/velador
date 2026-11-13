@@ -24,6 +24,7 @@ export const I = {
 	mute: svg('<path d="M4 9.5h3l5-4v13l-5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>'),
 	shot: svg('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.5-2h5L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/>'),
 	full: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+	shrink: svg('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),
 	up: svg('<path d="m6 14 6-6 6 6"/>'),
 	down: svg('<path d="m6 10 6 6 6-6"/>'),
 	left: svg('<path d="m14 6-6 6 6 6"/>'),

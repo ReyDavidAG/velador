@@ -1,11 +1,12 @@
 # Estado · Velador
 
-Última actualización: 2026-11-12
+Última actualización: 2026-11-13
 
 ## Dónde vamos
 
 - **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
-- **Windows: a medias, en `feature/windows` (PR #1).** Compila, se instala como tarea y pasa la prueba sin cámara en un Windows de CI. Falta probarlo en la PC con la cámara. Todo el detalle y los pasos para seguir están en `docs/windows.md`.
+- **Windows: instalado y grabando en la PC con la cámara (2026-11-13).** Compila ahí (96 pruebas del motor, 15 de la app). Corregidas las consolas que se abrían solas y la reinstalación encima. Falta recorrer Ronda con sonido, recortes, disco externo y controles Tapo en WebView2. Detalle en `docs/windows.md`.
+- **Mover la cámara manteniendo presionado** (botón o flecha): avanza paso a paso sin soltar. En pantalla completa hay control de movimiento sobre el video, doble clic entra y sale, y los controles y el cursor se esconden tras 3 s quietos. Sin probar a ojo en la ventana.
 - **Hasta 3 redes por cámara: hecho, sin probar el cambio físico de red.** Cada red donde Velador ve la cámara queda guardada (se reconoce por el router). Al cambiar de red usa la dirección recordada, y si no hay, la busca por número de serie. Se ven y se olvidan en Cámaras. En macOS el nombre sale como «Red 192.168.1.1» porque el sistema no entrega el nombre del WiFi a un servicio.
 - **Luz blanca, modo de noche, voltear la imagen y WiFi de la cámara: hecho, por el protocolo privado de Tapo.** El motor lo habla por sí mismo (SPAKE2+ sobre P-256 y AES-CCM, portado de `pytapo` y verificado con sus vectores; el protocolo anterior queda como respaldo). Probado con la cámara real: leer estado, encender y apagar la luz, y listar redes. **Sin probar:** cambiar el modo de noche, voltear la imagen y, sobre todo, cambiar la cámara de red (no se ejecutó para no dejarla desconectada). Usa la contraseña de la cuenta Tapo; si no se da aparte, prueba con la de la cuenta de cámara.
 - **Cámara con IP cambiante: hecho.** El motor la reencuentra por su número de serie (probado apuntándolo a una dirección equivocada).

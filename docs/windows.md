@@ -14,8 +14,15 @@ El trabajo de Windows ya está unido a `develop`. Última revisión: 2026-11-12.
 1. Confirmar que el último CI de la rama quedó en verde (el script de prueba terminaba con código 1 por un `reg query`; ya tiene `exit 0`, pero esa corrida no se revisó).
 2. Probar en tu PC, con la cámara: instalar, dar de alta la cámara, vivo en la ventana (WebView2), la Ronda con sonido, recorte, disco externo y arranque al iniciar sesión.
 3. Instalar como usuario sin permisos de administrador: si `schtasks` se niega, el motor cae a la clave `Run` del registro (sin reinicio automático). No se ha visto en la práctica.
-4. El instalador no detiene el motor antes de actualizar: para reinstalar, primero `Velador.Engine.exe uninstall`.
+4. ~~El instalador no detiene el motor antes de actualizar~~: resuelto con `desktop/src-tauri/windows/hooks.nsh` (detiene el motor y MediaMTX, reemplaza y vuelve a arrancar la tarea; al desinstalar quita la tarea).
 5. Sin firma: SmartScreen va a advertir al abrir el instalador.
+
+## Probado en la PC con la cámara (2026-11-13)
+
+- Instalación como usuario sin administrador: la tarea `Velador\Engine` se registra con `schtasks` sin pedir permisos.
+- Cámara dada de alta y grabando desde la app.
+- Corregido: MediaMTX abría una consola visible cada vez que arrancaba o el vigía lo reiniciaba (faltaba `CreateNoWindow`), y la app abría una consola detrás de la ventana (faltaba `windows_subsystem`).
+- Corregido: reinstalar encima dejaba el motor viejo porque el archivo estaba en uso.
 
 ## Cómo compilar e instalar en la PC
 

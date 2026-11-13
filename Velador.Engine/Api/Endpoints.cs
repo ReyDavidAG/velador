@@ -17,34 +17,52 @@ public static class Endpoints
 		api.MapGet("/cameras/{id}/media", Media);
 		api.MapGet("/cameras/{id}/ptz", Position);
 		api.MapPost("/cameras/{id}/ptz", Move);
+		api.MapManagement();
 		api.MapPost("/cameras/{id}/live", (string id, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, context, settings, media));
 	}
 
-	static IResult Summary(EngineSettings settings, EnginePaths paths, ContinuityService continuity, MediaSupervisor supervisor, TimeProvider time)
+	static IResult Summary(EngineSettings settings, Storage storage, EngineDatabase database, ContinuityService continuity, MediaSupervisor supervisor, TimeProvider time)
 	{
-		var recordings = paths.Recordings(settings);
-		var drive = Directory.Exists(recordings) ? new DriveInfo(Path.GetPathRoot(Path.GetFullPath(recordings))!) : null;
+		var now = time.GetUtcNow().ToUnixTimeMilliseconds();
 		var cameras = settings.Cameras.Select(camera =>
 		{
 			var guard = continuity.Guard(camera.Id);
+			var last = database.LastEvent(camera.Id);
 			return new
 			{
 				camera.Id,
 				camera.Name,
+				camera.Rotation,
 				state = guard.OpenGap is not null ? "gap" : guard.Online ? "on_guard" : "reconnecting",
 				gap = guard.OpenGap is null ? null : new { startMs = guard.OpenGap.StartMs, cause = guard.OpenGap.Cause.ToCode() },
 				guardSinceMs = guard.GuardSinceMs,
+				lastEvent = last is null ? null : new { last.Id, startMs = last.StartMs, kind = last.Kind.ToCode() },
 			};
 		});
 		return Results.Ok(new
 		{
-			nowMs = time.GetUtcNow().ToUnixTimeMilliseconds(),
+			nowMs = now,
 			state = settings.Cameras.Count == 0 ? "no_camera" : supervisor.Missing ? "no_media_server" : "running",
 			cameras,
-			disk = drive is null ? null : new { totalBytes = drive.TotalSize, freeBytes = drive.AvailableFreeSpace },
+			disk = Disk(storage.Active),
+			storage = new { active = storage.Active, primary = storage.Primary, external = storage.UsesExternal, onFallback = storage.OnFallback, released = storage.Released },
 			retention = new { days = settings.RetentionDays, percent = settings.RetentionPercent },
 		});
+	}
+
+	public static object? Disk(string dir)
+	{
+		try
+		{
+			var full = Path.GetFullPath(dir);
+			var drive = DriveInfo.GetDrives().Where(d => d.IsReady && full.StartsWith(d.RootDirectory.FullName, StringComparison.Ordinal)).OrderByDescending(d => d.RootDirectory.FullName.Length).FirstOrDefault();
+			return drive is null ? null : new { totalBytes = drive.TotalSize, freeBytes = drive.AvailableFreeSpace };
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+		{
+			return null;
+		}
 	}
 
 	static async Task<IResult> RoundOf(string id, string date, string? tz, EngineSettings settings, EngineDatabase database, MediaMtxClient media, TimeProvider time, CancellationToken ct)

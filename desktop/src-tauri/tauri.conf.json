@@ -1,0 +1,26 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Velador",
+	"version": "0.1.0",
+	"identifier": "com.reydavidag.velador",
+	"build": {
+		"frontendDist": "../fallback"
+	},
+	"app": {
+		"withGlobalTauri": false,
+		"windows": [],
+		"security": {
+			"csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost; base-uri 'none'; form-action 'none'"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["app"],
+		"category": "Utility",
+		"copyright": "MIT",
+		"icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.png"],
+		"macOS": {
+			"minimumSystemVersion": "13.0"
+		}
+	}
+}

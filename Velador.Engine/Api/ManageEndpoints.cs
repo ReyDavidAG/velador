@@ -21,7 +21,7 @@ public static class ManageEndpoints
 
 	public static void MapManagement(this RouteGroupBuilder api)
 	{
-		api.MapGet("/settings", (EngineSettings settings, Storage storage) => Results.Ok(SettingsView(settings, storage)));
+		api.MapGet("/settings", (EngineSettings settings, Storage storage, IRecordingStore store, TimeProvider time) => Results.Ok(SettingsView(settings, storage, store, time)));
 		api.MapPut("/settings", SaveSettings);
 		api.MapPost("/storage/release", (Storage storage) =>
 		{
@@ -64,7 +64,19 @@ public static class ManageEndpoints
 		});
 	}
 
-	static object SettingsView(EngineSettings settings, Storage storage) => new
+	static object SettingsView(EngineSettings settings, Storage storage, IRecordingStore store, TimeProvider time)
+	{
+		RetentionOutlook? outlook = null;
+		try
+		{
+			var (total, free) = store.Disk();
+			outlook = RetentionForecast.Outlook(store.Segments(), time.GetUtcNow().ToUnixTimeMilliseconds(), total, free, new RetentionLimits(settings.RetentionDays, settings.RetentionPercent));
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }
+		return View(settings, storage, outlook);
+	}
+
+	static object View(EngineSettings settings, Storage storage, RetentionOutlook? outlook) => new
 	{
 		recordingsDir = settings.RecordingsDir,
 		defaultDir = storage.Fallback,
@@ -76,10 +88,11 @@ public static class ManageEndpoints
 		retentionPercent = settings.RetentionPercent,
 		keepAwake = settings.KeepAwake,
 		disk = Endpoints.Disk(storage.Active),
+		outlook = outlook is null ? null : new { outlook.RecordedBytes, outlook.OldestMs, outlook.BytesPerDay, outlook.DaysThatFit, outlook.LimitedBy, outlook.NextDeletionMs },
 		volumes = Storage.Volumes().Select(v => new { v.Name, v.Path, v.TotalBytes, v.FreeBytes, suggested = Path.Combine(v.Path, "Velador") }),
 	};
 
-	static IResult SaveSettings(SettingsRequest request, EngineSettings settings, EnginePaths paths, Storage storage)
+	static IResult SaveSettings(SettingsRequest request, EngineSettings settings, EnginePaths paths, Storage storage, IRecordingStore store, TimeProvider time)
 	{
 		if (request.RetentionDays is < 1 or > 365 || request.RetentionPercent is < 10 or > 98) return Results.BadRequest(new { error = "Los límites están fuera de rango." });
 		var dir = string.IsNullOrWhiteSpace(request.RecordingsDir) ? null : request.RecordingsDir.Trim();
@@ -94,7 +107,7 @@ public static class ManageEndpoints
 		settings.KeepAwake = request.KeepAwake;
 		settings.Save(paths);
 		storage.Reclaim();
-		return Results.Ok(SettingsView(settings, storage));
+		return Results.Ok(SettingsView(settings, storage, store, time));
 	}
 
 	static async Task<IResult> Test(TestRequest request, ISecretStore secrets, HttpClient http, TimeProvider time, CancellationToken ct)

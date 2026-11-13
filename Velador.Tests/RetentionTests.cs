@@ -70,3 +70,52 @@ public class RetentionTests
 		Assert.Equal(23, doomed.Count);
 	}
 }
+
+public class RetentionForecastTests
+{
+	const long Hour = 3_600_000;
+	const long Day = 86_400_000;
+	const long GB = 1024L * 1024 * 1024;
+
+	static List<StoredSegment> Hourly(long fromMs, int hours, long bytesEach) =>
+		Enumerable.Range(0, hours).Select(i => new StoredSegment($"f{i}.mp4", "camamain", fromMs + i * Hour, bytesEach)).ToList();
+
+	[Fact]
+	public void It_measures_a_day_from_the_last_hours_and_says_the_days_limit_rules()
+	{
+		var now = 10 * Day;
+		var segments = Hourly(now - 6 * Hour, 6, GB / 2);
+
+		var outlook = RetentionForecast.Outlook(segments, now, 1000 * GB, 800 * GB, new RetentionLimits(2, 80));
+
+		Assert.Equal(3 * GB, outlook.RecordedBytes);
+		Assert.Equal(12 * GB, outlook.BytesPerDay);
+		Assert.Equal(2, outlook.DaysThatFit);
+		Assert.Equal("days", outlook.LimitedBy);
+		Assert.Equal(now - 6 * Hour + Hour + 2 * Day, outlook.NextDeletionMs);
+	}
+
+	[Fact]
+	public void A_small_disk_limits_the_days_and_says_when_it_starts_deleting()
+	{
+		var now = 10 * Day;
+		var segments = Hourly(now - 12 * Hour, 12, GB);
+
+		var outlook = RetentionForecast.Outlook(segments, now, 100 * GB, 60 * GB, new RetentionLimits(14, 80));
+
+		Assert.Equal(24 * GB, outlook.BytesPerDay);
+		Assert.Equal("disk", outlook.LimitedBy);
+		Assert.Equal(52.0 / 24, outlook.DaysThatFit!.Value, 3);
+		Assert.Equal(now + (long)(40.0 / 24 * Day), outlook.NextDeletionMs);
+	}
+
+	[Fact]
+	public void Without_enough_recording_it_does_not_guess()
+	{
+		var outlook = RetentionForecast.Outlook(Hourly(10 * Day - 60_000, 1, GB / 100), 10 * Day, 100 * GB, 60 * GB, new RetentionLimits(14, 80));
+
+		Assert.Null(outlook.BytesPerDay);
+		Assert.Null(outlook.DaysThatFit);
+		Assert.Equal("days", outlook.LimitedBy);
+	}
+}

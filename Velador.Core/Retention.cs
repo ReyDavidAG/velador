@@ -28,3 +28,29 @@ public static class Retention
 		return doomed;
 	}
 }
+
+public sealed record RetentionOutlook(long RecordedBytes, long? OldestMs, long? BytesPerDay, double? DaysThatFit, string LimitedBy, long? NextDeletionMs);
+
+public static class RetentionForecast
+{
+	const long DayMs = 86_400_000;
+	const long MinSampleMs = 10 * 60_000;
+
+	public static RetentionOutlook Outlook(IReadOnlyList<StoredSegment> segments, long nowMs, long diskTotalBytes, long diskFreeBytes, RetentionLimits limits, long segmentMs = 3_600_000)
+	{
+		var recorded = segments.Sum(s => s.Bytes);
+		long? oldest = segments.Count == 0 ? null : segments.Min(s => s.StartMs);
+		var recent = segments.Where(s => s.StartMs >= nowMs - DayMs).ToList();
+		var sampleMs = recent.Count == 0 ? 0 : nowMs - recent.Min(s => s.StartMs);
+		long? perDay = sampleMs >= MinSampleMs ? (long)(recent.Sum(s => s.Bytes) * (double)DayMs / sampleMs) : null;
+		var others = diskTotalBytes - diskFreeBytes - recorded;
+		var allowed = Math.Min(diskTotalBytes * limits.DiskPercent / 100 - others, recorded + diskFreeBytes - limits.FloorBytes);
+		double? byDisk = perDay is > 0 ? Math.Max(0, allowed) / (double)perDay : null;
+		var limitedBy = byDisk is { } d && d < limits.Days ? "disk" : "days";
+		double? fit = byDisk is { } days ? Math.Min(limits.Days, days) : null;
+		long? next = null;
+		if (limitedBy == "days" && oldest is { } first) next = Math.Max(nowMs, first + segmentMs + limits.Days * DayMs);
+		else if (limitedBy == "disk" && perDay is > 0) next = nowMs + (long)(Math.Max(0, allowed - recorded) / (double)perDay * DayMs);
+		return new RetentionOutlook(recorded, oldest, perDay, fit, limitedBy, next);
+	}
+}

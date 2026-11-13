@@ -159,7 +159,7 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 - [ ] API: `cameras` (alta y edición), `events`, `clips`, `settings`, `ptz`. Contrato en `docs/api.md`.
 - [ ] Descubrimiento ONVIF, alta con IP a mano, errores de cuenta de cámara; la cámara se identifica por MAC para sobrevivir a un cambio de IP.
 - [ ] Miniaturas desde `stream2`.
-- [ ] Retención; nunca borra recortes ni el archivo en curso.
+- [x] Retención por días y por disco, con piso de espacio libre; nunca borra el archivo en curso ni lo que cubre un recorte.
 - [ ] Modo demo (`VELADOR_DEMO=1`) con datos ficticios.
 - **Listo cuando** graba 24 h con cobertura de 100 % y pasa la matriz de continuidad: reposo y despertar, tapa cerrada, cierre de sesión, `kill -STOP` a MediaMTX, reinicio de la cámara y del router, disco lleno y cambio de hora; cada caso deja su hueco con la causa correcta.
 

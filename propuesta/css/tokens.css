@@ -1,0 +1,81 @@
+:root {
+	--bg: #0b0d11;
+	--surface: #13161c;
+	--surface-2: #191d25;
+	--sunken: #0f1216;
+	--ink: #eef0f4;
+	--ink-2: #c9ced8;
+	--muted: #969eac;
+	--faint: #8a92a0;
+	--line: #262b35;
+	--line-strong: #586070;
+	--hairline: #1d2129;
+
+	--brand: #f5b83d;
+	--brand-ink: #1c1403;
+	--brand-soft: rgb(245 184 61 / 0.14);
+
+	--span: #3fb6a8;
+	--span-soft: rgb(63 182 168 / 0.16);
+	--relay: #5b9bf0;
+	--motion: #f5b83d;
+	--person: #b58cff;
+	--person-soft: rgb(181 140 255 / 0.16);
+	--live: #ff5a4d;
+	--live-soft: rgb(255 90 77 / 0.16);
+	--gap: #7d8594;
+
+	--good: #46c58a;
+	--good-soft: rgb(70 197 138 / 0.14);
+	--warn: #f5b83d;
+	--bad: #ff6b5e;
+
+	--font: 'Schibsted Grotesk', system-ui, sans-serif;
+	--mono: 'JetBrains Mono', ui-monospace, monospace;
+
+	--r-lg: 18px;
+	--r: 12px;
+	--r-sm: 8px;
+	--shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.7);
+	--shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.05);
+	--ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+	color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+	--bg: #f2f1ed;
+	--surface: #ffffff;
+	--surface-2: #f8f7f4;
+	--sunken: #e9e7e1;
+	--ink: #15171c;
+	--ink-2: #3a3f4a;
+	--muted: #5c6370;
+	--faint: #6b7280;
+	--line: #dfdcd4;
+	--line-strong: #8d8a82;
+	--hairline: #ebe9e3;
+
+	--brand: #8a5a00;
+	--brand-ink: #ffffff;
+	--brand-soft: rgb(196 132 10 / 0.14);
+
+	--span: #12897c;
+	--span-soft: rgb(18 137 124 / 0.13);
+	--relay: #2f6fd0;
+	--motion: #b97a06;
+	--person: #7a4be0;
+	--person-soft: rgb(122 75 224 / 0.12);
+	--live: #b92d21;
+	--live-soft: rgb(212 58 45 / 0.12);
+	--gap: #7f7a6e;
+
+	--good: #146c43;
+	--good-soft: rgb(27 133 83 / 0.12);
+	--warn: #8a5a00;
+	--bad: #c2372b;
+
+	--shadow: 0 1px 2px rgb(20 23 28 / 0.05), 0 12px 28px -18px rgb(20 23 28 / 0.3);
+	--shadow-pop: 0 24px 60px -22px rgb(20 23 28 / 0.45), 0 0 0 1px rgb(20 23 28 / 0.06);
+	color-scheme: light;
+}

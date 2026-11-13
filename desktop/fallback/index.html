@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Velador</title>
+		<link rel="stylesheet" href="style.css" />
+		<script type="module" src="app.js"></script>
+	</head>
+	<body>
+		<main>
+			<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="2.6" /><circle cx="16" cy="16" r="4.4" /></svg>
+			<h1>Velador no está de guardia</h1>
+			<p class="lead">El motor de grabación está detenido. Nada se está guardando en este momento.</p>
+			<button id="start" class="btn" type="button">Iniciar la guardia</button>
+			<p id="status" class="status" role="status" aria-live="polite"></p>
+		</main>
+	</body>
+</html>

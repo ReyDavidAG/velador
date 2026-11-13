@@ -81,6 +81,29 @@ public sealed partial class OnvifClient(HttpClient http, Camera camera, string p
 		await CallAsync(Service, $"<RelativeMove xmlns=\"{Ptz}\"><ProfileToken>{profile}</ProfileToken><Translation><PanTilt xmlns=\"{Schema}\" x=\"{x}\" y=\"{y}\"/></Translation></RelativeMove>", TimeSpan.FromSeconds(6), ct);
 	}
 
+	public async Task ContinuousMoveAsync(double vx, double vy, TimeSpan timeout, CancellationToken ct)
+	{
+		var profile = await ProfileAsync(ct);
+		var x = Math.Clamp(vx, -1, 1).ToString("0.###", CultureInfo.InvariantCulture);
+		var y = Math.Clamp(vy, -1, 1).ToString("0.###", CultureInfo.InvariantCulture);
+		var limit = System.Xml.XmlConvert.ToString(timeout);
+		await CallAsync(Service, $"<ContinuousMove xmlns=\"{Ptz}\"><ProfileToken>{profile}</ProfileToken><Velocity><PanTilt xmlns=\"{Schema}\" x=\"{x}\" y=\"{y}\"/></Velocity><Timeout>{limit}</Timeout></ContinuousMove>", TimeSpan.FromSeconds(3), ct);
+	}
+
+	public async Task AbsoluteMoveAsync(PanTilt to, CancellationToken ct)
+	{
+		var profile = await ProfileAsync(ct);
+		var x = Math.Clamp(to.X, -1, 1).ToString("0.######", CultureInfo.InvariantCulture);
+		var y = Math.Clamp(to.Y, -1, 1).ToString("0.######", CultureInfo.InvariantCulture);
+		await CallAsync(Service, $"<AbsoluteMove xmlns=\"{Ptz}\"><ProfileToken>{profile}</ProfileToken><Position><PanTilt xmlns=\"{Schema}\" x=\"{x}\" y=\"{y}\"/></Position></AbsoluteMove>", TimeSpan.FromSeconds(6), ct);
+	}
+
+	public async Task StopAsync(CancellationToken ct)
+	{
+		var profile = await ProfileAsync(ct);
+		await CallAsync(Service, $"<Stop xmlns=\"{Ptz}\"><ProfileToken>{profile}</ProfileToken><PanTilt>true</PanTilt><Zoom>false</Zoom></Stop>", TimeSpan.FromSeconds(3), ct);
+	}
+
 	public async Task<string> SubscribeAsync(CancellationToken ct)
 	{
 		var xml = await CallAsync(Service, $"<CreatePullPointSubscription xmlns=\"{Events}\"><InitialTerminationTime>PT120S</InitialTerminationTime></CreatePullPointSubscription>", TimeSpan.FromSeconds(6), ct);

@@ -32,6 +32,14 @@ pub fn cause(code: &str) -> &'static str {
     }
 }
 
+pub fn pause_label(paused: bool) -> &'static str {
+    if paused {
+        "Reanudar la grabación"
+    } else {
+        "Pausar la grabación"
+    }
+}
+
 pub fn status(summary: &Result<Summary, String>) -> String {
     let Ok(summary) = summary else {
         return "El motor no responde".into();
@@ -43,6 +51,15 @@ pub fn status(summary: &Result<Summary, String>) -> String {
 }
 
 pub fn camera_status(camera: &Camera, now_ms: i64) -> String {
+    if camera.state == "paused" {
+        return match camera.paused_until_ms {
+            Some(until) => format!(
+                "Grabación en pausa · se reanuda en {}",
+                span((until - now_ms) / 1000)
+            ),
+            None => "Grabación en pausa".into(),
+        };
+    }
     match (camera.state.as_str(), &camera.gap, camera.guard_since_ms) {
         ("on_guard", _, Some(since)) => {
             format!("De guardia · {} sin huecos", span((now_ms - since) / 1000))
@@ -70,6 +87,7 @@ mod tests {
             gap,
             guard_since_ms: since,
             last_event: None,
+            paused_until_ms: None,
         }
     }
 
@@ -99,6 +117,17 @@ mod tests {
         assert_eq!(
             camera_status(&camera("reconnecting", None, None), 0),
             "Reconectando con la cámara"
+        );
+    }
+
+    #[test]
+    fn la_pausa_dice_cuando_se_reanuda() {
+        let mut paused = camera("paused", None, None);
+        assert_eq!(camera_status(&paused, 0), "Grabación en pausa");
+        paused.paused_until_ms = Some(3_600_000);
+        assert_eq!(
+            camera_status(&paused, 1_200_000),
+            "Grabación en pausa · se reanuda en 40 min"
         );
     }
 

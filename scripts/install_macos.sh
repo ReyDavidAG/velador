@@ -13,13 +13,14 @@ if [ -x "$HOME/.dotnet10/dotnet" ]; then
 fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
-[ -x tools/mediamtx/mediamtx ] || scripts/fetch_binaries.sh
+{ [ -x tools/mediamtx/mediamtx ] && [ -f tools/models/yolox_tiny.onnx ]; } || scripts/fetch_binaries.sh
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 mkdir -p "$DEST"
 dotnet publish Velador.Engine -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:DebugType=none -o "$DEST" >/dev/null
 cp tools/mediamtx/mediamtx "$DEST/mediamtx"
 rm -rf "$DEST/web" && cp -R web "$DEST/web"
+rm -rf "$DEST/models" && cp -R tools/models "$DEST/models"
 "$DEST/Velador.Engine" install
 
 [ -d node_modules ] || npm ci --no-audit --no-fund

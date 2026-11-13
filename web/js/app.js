@@ -1,10 +1,11 @@
 import { loadSummary, state } from './store.js'
-import { esc, I, NAV, span } from './ui.js'
+import { clockAt, esc, HERE, I, NAV, span } from './ui.js'
 import { camerasView } from './views/cameras_view.js'
 import { clipsView } from './views/clips_view.js'
 import { continuityView } from './views/continuity_view.js'
 import { eventsView } from './views/events_view.js'
 import { liveView } from './views/live_view.js'
+import { peopleView } from './views/people_view.js'
 import { roundView } from './views/round_view.js'
 import { settingsView } from './views/settings_view.js'
 import { welcomeView } from './views/welcome_view.js'
@@ -13,6 +14,7 @@ const ROUTES = {
 	'/': liveView,
 	'/round': roundView,
 	'/events': eventsView,
+	'/people': peopleView,
 	'/clips': clipsView,
 	'/cameras': camerasView,
 	'/continuity': continuityView,
@@ -61,7 +63,7 @@ const applyTheme = () => {
 }
 
 const since = ms => span(ms < 60000 ? ms / 1000 : Math.floor(ms / 60000) * 60)
-const LABEL = { on_guard: 'De guardia', reconnecting: 'Reconectando', gap: 'Sin grabar' }
+const LABEL = { on_guard: 'De guardia', reconnecting: 'Reconectando', gap: 'Sin grabar', paused: 'En pausa' }
 
 const tickGuard = async () => {
 	try {
@@ -77,7 +79,7 @@ const tickGuard = async () => {
 	else delete document.querySelector('[data-guard-sub]').dataset.fallback
 	document.querySelector('[data-guard-top]').lastChild.textContent = LABEL[cam.state] ?? cam.state
 	document.querySelector('[data-guard]').textContent = cam.state === 'on_guard' && cam.guardSinceMs ? since(state.summary.nowMs - cam.guardSinceMs) : '—'
-	document.querySelector('[data-guard-sub]').textContent = cam.state !== 'on_guard' ? 'la grabación está detenida' : state.summary.storage?.onFallback ? 'sin huecos · en esta Mac, falta el disco' : 'sin huecos'
+	document.querySelector('[data-guard-sub]').textContent = cam.state === 'paused' ? (cam.pausedUntilMs ? `reanuda a las ${clockAt(cam.pausedUntilMs)}` : 'hasta que la reanudes') : cam.state !== 'on_guard' ? 'la grabación está detenida' : state.summary.storage?.onFallback ? `sin huecos · en ${HERE}, falta el disco` : 'sin huecos'
 }
 
 const gate = message => {

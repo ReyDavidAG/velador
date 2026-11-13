@@ -68,7 +68,7 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 		}
 		var recordings = storage.Activate();
 		_configured = Signature();
-		File.WriteAllText(paths.MediaConfig, MediaMtxConfig.Build(ports, recordings, settings.Cameras));
+		File.WriteAllText(paths.MediaConfig, MediaMtxConfig.Build(ports, recordings, settings.Cameras, settings.Paused.Keys.ToHashSet()));
 		var info = new ProcessStartInfo(paths.MediaBinary, [paths.MediaConfig])
 		{
 			WorkingDirectory = paths.Home,

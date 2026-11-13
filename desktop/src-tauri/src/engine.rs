@@ -36,6 +36,8 @@ pub struct Camera {
     pub guard_since_ms: Option<i64>,
     #[serde(default)]
     pub last_event: Option<LastEvent>,
+    #[serde(default)]
+    pub paused_until_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -93,6 +95,19 @@ pub fn summary() -> Result<Summary, String> {
         .map_err(|e| e.to_string())?
         .body_mut()
         .read_json::<Summary>()
+        .map_err(|e| e.to_string())
+}
+
+pub fn set_recording(camera_id: &str, paused: bool) -> Result<(), String> {
+    let token = read_token(&state_dir())?;
+    client(Duration::from_secs(5))
+        .post(format!(
+            "{}api/cameras/{camera_id}/recording",
+            nav::dashboard()
+        ))
+        .header("x-velador-token", &token)
+        .send_json(serde_json::json!({ "paused": paused }))
+        .map(|_| ())
         .map_err(|e| e.to_string())
 }
 

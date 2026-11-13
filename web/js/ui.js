@@ -56,6 +56,7 @@ export const NAV = [
 	{ href: '#/', label: 'En vivo', icon: 'live' },
 	{ href: '#/round', label: 'Ronda', icon: 'round' },
 	{ href: '#/events', label: 'Sucesos', icon: 'events' },
+	{ href: '#/people', label: 'Personas', icon: 'person', desktop: true },
 	{ href: '#/clips', label: 'Recortes', icon: 'clips' },
 	{ href: '#/cameras', label: 'Cámaras', icon: 'camera', group: 'Sistema', desktop: true },
 	{ href: '#/continuity', label: 'Continuidad', icon: 'shield', desktop: true },
@@ -71,6 +72,9 @@ export const span = s => {
 	if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`
 	return `${Math.floor(s / 3600)} h${Math.floor((s % 3600) / 60) ? ` ${Math.floor((s % 3600) / 60)} min` : ''}`
 }
+export const HERE = /Windows/.test(navigator.userAgent) ? 'esta PC' : 'esta Mac'
+export const THERE = /Windows/.test(navigator.userAgent) ? 'la PC' : 'la Mac'
+export const clockAt = ms => new Date(ms).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
 export const pct = v => `${v >= 100 ? '100' : Math.min(99.9, v).toFixed(1)} %`
 export const gb = v => `${v.toFixed(v < 10 ? 1 : 0)} GB`
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1)

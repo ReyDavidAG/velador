@@ -16,6 +16,7 @@ export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 export const api = {
 	summary: () => send('GET', '/summary'),
 	round: (cameraId, date) => send('GET', `/cameras/${cameraId}/rounds/${date}?tz=${encodeURIComponent(zone)}`),
+	recording: (cameraId, paused, minutes) => send('POST', `/cameras/${cameraId}/recording`, { paused, minutes }),
 	move: (cameraId, x, y) => send('POST', `/cameras/${cameraId}/ptz`, { x, y }),
 	mediaUrl: (cameraId, startMs, durationMs, stream = 'main') => `/api/cameras/${cameraId}/media?startMs=${Math.round(startMs)}&durationMs=${Math.round(durationMs)}&stream=${stream}`,
 	settings: () => send('GET', '/settings'),
@@ -40,4 +41,10 @@ export const api = {
 	removeClip: id => send('DELETE', `/clips/${id}`),
 	revealClip: id => send('POST', `/clips/${id}/reveal`),
 	clipUrl: id => `/api/clips/${id}/file`,
+	vision: cameraId => send('GET', `/cameras/${cameraId}/vision`),
+	follow: (cameraId, follow) => send('PUT', `/cameras/${cameraId}/vision`, { follow }),
+	calibrate: cameraId => send('POST', `/cameras/${cameraId}/vision/calibrate`),
+	people: (cameraId, date) => send('GET', `/cameras/${cameraId}/people?date=${date}`),
+	sightingUrl: id => `/api/sightings/${id}/image`,
+	forgetPerson: id => send('DELETE', `/people/${id}`),
 }

@@ -7,7 +7,7 @@ public static class MediaMtxConfig
 {
 	public const string PlaceholderSource = "rtsp://127.0.0.1:1/none";
 
-	public static string Build(MediaPorts ports, string recordingsDir, IEnumerable<Camera> cameras)
+	public static string Build(MediaPorts ports, string recordingsDir, IEnumerable<Camera> cameras, IReadOnlySet<string>? paused = null)
 	{
 		var dir = recordingsDir.Replace('\\', '/').Replace("'", "''");
 		var yaml = new StringBuilder();
@@ -15,7 +15,11 @@ public static class MediaMtxConfig
 		Line(yaml, "logDestinations: [stdout]");
 		Line(yaml, "api: yes");
 		Line(yaml, $"apiAddress: 127.0.0.1:{ports.Api}");
-		foreach (var off in new[] { "metrics", "pprof", "rtsp", "rtmp", "hls", "srt", "moq" }) Line(yaml, $"{off}: no");
+		foreach (var off in new[] { "metrics", "pprof", "rtmp", "hls", "srt", "moq" }) Line(yaml, $"{off}: no");
+		Line(yaml, "rtsp: yes");
+		Line(yaml, $"rtspAddress: 127.0.0.1:{ports.Rtsp}");
+		Line(yaml, "rtspTransports: [tcp]");
+		Line(yaml, "rtspEncryption: \"no\"");
 		Line(yaml, "webrtc: yes");
 		Line(yaml, $"webrtcAddress: 127.0.0.1:{ports.WebRtc}");
 		Line(yaml, $"webrtcLocalUDPAddress: 127.0.0.1:{ports.WebRtcUdp}");
@@ -40,6 +44,7 @@ public static class MediaMtxConfig
 			{
 				Line(yaml, $"  {camera.MediaPath(stream)}:");
 				Line(yaml, $"    source: {PlaceholderSource}");
+				if (paused?.Contains(camera.Id) == true) Line(yaml, "    record: no");
 			}
 		return yaml.ToString();
 	}

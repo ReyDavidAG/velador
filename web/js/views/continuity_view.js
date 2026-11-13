@@ -1,13 +1,13 @@
 import { api } from '../services/api.js'
 import { loadWeek, state } from '../store.js'
-import { CAUSE, dateLabel, dayLabel, esc, I, pct, span } from '../ui.js'
+import { CAUSE, HERE, I, dateLabel, dayLabel, esc, pct, span } from '../ui.js'
 
 const layers = (settings, summary) => [
 	['engine', 'El motor no depende de la ventana', 'Graba en segundo plano mientras tu sesión esté abierta. Cerrar la ventana no corta nada.', true],
 	['sleep', 'El equipo no se duerme solo', 'Evita el reposo por inactividad. Cerrar la tapa o quedarse sin batería sí lo duerme.', settings.keepAwake],
 	['wifi', 'Vigía de señal', 'Si pasan 5 s sin imagen nueva, reconecta solo y anota la causa.', true],
 	['disk', 'Se guarda cada segundo', 'Si se va la luz o se cierra a la fuerza, se pierde a lo mucho 1 s.', true],
-	['folder', 'Disco externo con respaldo', summary.storage.external ? (summary.storage.onFallback ? 'El disco no está: se graba en esta Mac y se pasará al volver.' : 'Grabando en el disco externo. Si lo desconectas, sigue en esta Mac.') : 'Se graba en esta Mac. Puedes elegir un disco externo en Ajustes.', summary.storage.external && !summary.storage.onFallback],
+	['folder', 'Disco externo con respaldo', summary.storage.external ? (summary.storage.onFallback ? `El disco no está: se graba en ${HERE} y se pasará al volver.` : `Grabando en el disco externo. Si lo desconectas, sigue en ${HERE}.`) : `Se graba en ${HERE}. Puedes elegir un disco externo en Ajustes.`, summary.storage.external && !summary.storage.onFallback],
 ]
 
 const body = (rounds, settings, summary) => {

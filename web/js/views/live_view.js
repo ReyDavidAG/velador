@@ -2,7 +2,7 @@ import { roundHtml, setCursor } from '../components/round_timeline.js'
 import { api } from '../services/api.js'
 import { watchLive } from '../services/live.js'
 import { loadRound, loadSummary, state } from '../store.js'
-import { CAUSE, esc, I, pct, span, toast } from '../ui.js'
+import { CAUSE, clockAt, esc, I, pct, span, toast } from '../ui.js'
 
 const GB = 1024 ** 3
 const LEGEND = `<span class="legend"><span><i class="sw span"></i>Grabado</span><span><i class="sw gapp"></i>Hueco</span><span><i class="sw person"></i>Persona</span><span><i class="sw motion"></i>Movimiento</span></span>`
@@ -15,7 +15,7 @@ const PAD = `<header class="card-head"><h2>Mover la cámara</h2></header>
 	<div class="ptz"><div class="pad">${PAD_KEYS}</div><p class="muted-s">Un toque gira un poco; mantenlo presionado para seguir girando. También con las flechas del teclado.</p></div>`
 const STEP_PAUSE_MS = 120
 const IDLE_MS = 3000
-const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'] }
+const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'], paused: ['', 'En pausa'] }
 
 const guardHtml = () => {
 	const s = state.summary
@@ -28,7 +28,7 @@ const guardHtml = () => {
 			<div class="stat"><span class="mono stat-n">${since}</span><span class="stat-l">sin huecos</span></div>
 			<div class="stat"><span class="mono stat-n" data-cov>—</span><span class="stat-l">cobertura de hoy</span></div>
 		</div>
-		${cam.gap ? `<p class="note">${I[CAUSE[cam.gap.cause]?.icon ?? 'alert']}<span><b>${esc(CAUSE[cam.gap.cause]?.label ?? 'Sin grabación')}</b> desde hace ${span((s.nowMs - cam.gap.startMs) / 1000)}.</span></p>` : ''}
+		${cam.state === 'paused' ? `<p class="note">${I.pause}<span><b>Grabación en pausa.</b> ${cam.pausedUntilMs ? `Se reanuda sola a las ${clockAt(cam.pausedUntilMs)}.` : 'Sigue así hasta que la reanudes.'} El vivo sigue funcionando.</span></p>` : cam.gap ? `<p class="note">${I[CAUSE[cam.gap.cause]?.icon ?? 'alert']}<span><b>${esc(CAUSE[cam.gap.cause]?.label ?? 'Sin grabación')}</b> desde hace ${span((s.nowMs - cam.gap.startMs) / 1000)}.</span></p>` : ''}
 		${s.disk ? `<div class="disk"><div class="disk-bar"><i class="o" style="width:${used}%"></i><i class="limit" style="left:${s.retention.percent}%"></i></div>
 		<p class="disk-l"><span><i class="sw o"></i>Ocupado <b class="mono">${Math.round((s.disk.totalBytes - s.disk.freeBytes) / GB)} GB</b></span><span><i class="sw f"></i>Libre <b class="mono">${Math.round(s.disk.freeBytes / GB)} GB</b></span><span>Guarda <b class="mono">${s.retention.days} días</b></span></p></div>` : ''}`
 }
@@ -37,12 +37,16 @@ const html = () => `<div class="live-grid">
 	<div class="live-main">
 		<section class="stage" data-stage>
 			<video autoplay playsinline muted class="${state.camera.rotation === 180 ? 'rot' : ''}"></video>
-			<div class="osd tl"><span class="badge live" data-badge><i class="dot pulse"></i>EN VIVO</span><span class="osd-name">${esc(state.camera.name)}</span></div>
+			<div class="osd tl"><span class="badge live" data-badge><i class="dot pulse"></i>EN VIVO</span><span class="badge ghost" data-paused-badge hidden>${I.pause}SIN GRABAR</span><span class="osd-name">${esc(state.camera.name)}</span><span class="follow-chip" data-follow-chip hidden></span></div>
+			<div class="boxes" data-boxes hidden></div>
 			<div class="osd tr mono" data-clock></div>
 			<div class="stage-note" data-note><b>Conectando con la cámara…</b></div>
 			<div class="stage-bar">
 				<button class="bar-btn" type="button" data-mute title="Sonido">${I.mute}<span class="sr-only">Sonido</span></button>
 				<button class="bar-btn text" type="button" data-light hidden aria-pressed="false">${I.bulb}<span>Luz</span></button>
+				<span class="rec-wrap"><button class="bar-btn text" type="button" data-rec aria-haspopup="menu" aria-expanded="false">${I.pause}<span>Pausar grabación</span></button>
+				<span class="rec-menu" role="menu" data-rec-menu hidden><b>Dejar de grabar</b><button type="button" role="menuitem" data-pause="15">15 minutos</button><button type="button" role="menuitem" data-pause="60">1 hora</button><button type="button" role="menuitem" data-pause="240">4 horas</button><button type="button" role="menuitem" data-pause="0">Hasta que la reanude</button></span></span>
+				<button class="bar-btn text" type="button" data-follow aria-pressed="false" hidden>${I.person}<span>Seguir personas</span></button>
 				<span class="spacer"></span>
 				<button class="bar-btn text" type="button" data-save>${I.clips}<span>Guardar los últimos 30 s</span></button>
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
@@ -81,10 +85,99 @@ const mount = main => {
 		}
 		if (!alive) return
 		main.querySelector('[data-guard]').innerHTML = guardHtml()
+		showRec()
 		main.querySelector('[data-cov]').textContent = pct(round.coverage)
 		main.querySelector('[data-mini]').innerHTML = roundHtml(round, undefined, { mini: true })
 		setCursor(main.querySelector('[data-mini] .rt'), round.end, { from: 0, to: round.len }, round)
 	}
+	const recBtn = main.querySelector('[data-rec]')
+	const recMenu = main.querySelector('[data-rec-menu]')
+	const showRec = () => {
+		const paused = state.camera.state === 'paused'
+		recBtn.innerHTML = paused ? `${I.play}<span>Reanudar grabación</span>` : `${I.pause}<span>Pausar grabación</span>`
+		recBtn.classList.toggle('lit', paused)
+		recBtn.setAttribute('aria-haspopup', paused ? 'false' : 'menu')
+		main.querySelector('[data-paused-badge]').hidden = !paused
+	}
+	const closeMenu = () => {
+		recMenu.hidden = true
+		recBtn.setAttribute('aria-expanded', 'false')
+	}
+	const setRecording = async (paused, minutes) => {
+		recBtn.disabled = true
+		try {
+			await api.recording(state.camera.id, paused, minutes)
+			await loadSummary()
+			main.querySelector('[data-guard]').innerHTML = guardHtml()
+			showRec()
+			toast(paused ? (minutes ? `Sin grabar hasta las ${clockAt(Date.now() + minutes * 60000)}` : 'Grabación en pausa') : 'Grabando otra vez')
+		} catch (err) {
+			toast(err.message)
+		}
+		recBtn.disabled = false
+	}
+	showRec()
+	const followBtn = main.querySelector('[data-follow]')
+	const followChip = main.querySelector('[data-follow-chip]')
+	const boxes = main.querySelector('[data-boxes]')
+	let vision = null
+	const placeBoxes = () => {
+		const w = video.videoWidth
+		const h = video.videoHeight
+		const box = stage.getBoundingClientRect()
+		if (!w || !h || !box.width) return false
+		const scale = Math.min(box.width / w, box.height / h)
+		boxes.style.width = `${w * scale}px`
+		boxes.style.height = `${h * scale}px`
+		boxes.style.left = `${(box.width - w * scale) / 2}px`
+		boxes.style.top = `${(box.height - h * scale) / 2}px`
+		return true
+	}
+	const showVision = v => {
+		vision = v
+		const ready = v.status === 'running'
+		followBtn.hidden = !ready && !v.following
+		followBtn.setAttribute('aria-pressed', String(v.following))
+		followBtn.classList.toggle('lit', v.following)
+		followBtn.querySelector('span').textContent = v.following ? 'Siguiendo' : 'Seguir personas'
+		followChip.hidden = !v.following
+		followChip.classList.toggle('wait', v.manualHold || v.coasting || v.targetId == null)
+		followChip.innerHTML = `${I.person}<span>${v.manualHold ? 'Movimiento manual · retoma en 10 s' : v.coasting ? 'Buscando hacia donde iba' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
+		const tracks = ready ? v.tracks : []
+		boxes.hidden = !tracks.length || !placeBoxes()
+		if (boxes.hidden) return
+		boxes.innerHTML = tracks
+			.map(t => `<i class="box${t.id === v.targetId ? ' target' : ''}${t.seen ? '' : ' lost'}" style="left:${t.x * 100}%;top:${t.y * 100}%;width:${t.w * 100}%;height:${t.h * 100}%"></i>`)
+			.join('')
+	}
+	let visionBusy = false
+	const pollVision = async () => {
+		if (visionBusy || document.hidden) return
+		visionBusy = true
+		try {
+			const v = await api.vision(state.camera.id)
+			if (alive) showVision(v)
+		} catch {}
+		visionBusy = false
+	}
+	const setFollow = async on => {
+		followBtn.disabled = true
+		const calibrating = on && !vision?.calibration
+		if (calibrating) {
+			followBtn.querySelector('span').textContent = 'Calibrando… unos 30 s'
+			toast('Calibrando: la cámara va a girar un poco y regresar')
+		}
+		try {
+			showVision(await api.follow(state.camera.id, on))
+			toast(on ? 'Siguiendo a la persona más cercana' : 'Seguimiento apagado')
+		} catch (err) {
+			toast(err.message)
+			pollVision()
+		}
+		followBtn.disabled = false
+	}
+	pollVision()
+	const visionTick = setInterval(pollVision, 300)
 	const lightBtn = main.querySelector('[data-light]')
 	const showLight = on => {
 		lightBtn.hidden = false
@@ -135,6 +228,7 @@ const mount = main => {
 	}
 	const KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
 	const onKey = e => {
+		if (e.key === 'Escape' && !recMenu.hidden) return closeMenu()
 		const dir = KEYS[e.key]
 		if (!dir || e.target.closest('input, textarea, [role="radio"], [role="slider"]')) return
 		e.preventDefault()
@@ -172,6 +266,19 @@ const mount = main => {
 	stage.addEventListener('pointermove', wake)
 	stage.addEventListener('dblclick', onDblClick)
 	const onClick = async e => {
+		if (e.target.closest('[data-rec]')) {
+			if (state.camera.state === 'paused') return setRecording(false)
+			recMenu.hidden = !recMenu.hidden
+			recBtn.setAttribute('aria-expanded', String(!recMenu.hidden))
+			if (!recMenu.hidden) recMenu.querySelector('button').focus()
+			return
+		}
+		const choice = e.target.closest('[data-pause]')
+		if (choice) {
+			closeMenu()
+			return setRecording(true, Number(choice.dataset.pause) || undefined)
+		}
+		if (!e.target.closest('[data-rec-menu]')) closeMenu()
 		const save = e.target.closest('[data-save]')
 		if (save) {
 			save.disabled = true
@@ -184,6 +291,7 @@ const mount = main => {
 			}
 			save.disabled = false
 		}
+		if (e.target.closest('[data-follow]')) return setFollow(followBtn.getAttribute('aria-pressed') !== 'true')
 		if (e.target.closest('[data-light]')) {
 			lightBtn.disabled = true
 			try {
@@ -214,6 +322,7 @@ const mount = main => {
 		alive = false
 		clearInterval(tick)
 		clearInterval(poll)
+		clearInterval(visionTick)
 		held = null
 		clearTimeout(idleTimer)
 		stopLive()

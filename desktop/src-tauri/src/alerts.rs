@@ -58,7 +58,7 @@ pub fn check(app: &AppHandle, summary: &Summary) {
     let Some(camera) = summary.cameras.first() else {
         return;
     };
-    let gap = camera.gap.as_ref();
+    let gap = camera.gap.as_ref().filter(|g| g.cause != "paused");
     let person = app
         .state::<Alerts>()
         .0

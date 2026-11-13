@@ -23,7 +23,8 @@ public class MediaMtxConfigTests
 		Assert.Contains("webrtcAddress: 127.0.0.1:8354", yaml);
 		Assert.Contains("webrtcLocalUDPAddress: 127.0.0.1:8355", yaml);
 		Assert.Contains("playbackAddress: 127.0.0.1:8356", yaml);
-		foreach (var off in new[] { "moq", "rtsp", "rtmp", "hls", "srt", "metrics", "pprof" }) Assert.Contains($"\n{off}: no\n", yaml);
+		foreach (var off in new[] { "moq", "rtmp", "hls", "srt", "metrics", "pprof" }) Assert.Contains($"\n{off}: no\n", yaml);
+		Assert.Contains("rtspAddress: 127.0.0.1:8357\nrtspTransports: [tcp]\nrtspEncryption: \"no\"\n", yaml);
 		Assert.DoesNotContain("Address: :", yaml);
 	}
 

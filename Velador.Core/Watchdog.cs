@@ -36,7 +36,7 @@ public sealed class Watchdog(long stallMs = 5000, long restartEveryMs = 30000)
 			_gapStartMs = _lastProgressMs;
 			opened = new RecordedGap(_lastProgressMs, null, Classify(s));
 		}
-		var hung = s.ProcessAlive && s.CameraReachable && !s.CredentialsRejected;
+		var hung = s.CameraReachable && !s.CredentialsRejected;
 		var restart = hung && s.NowMs - _lastRestartMs >= restartEveryMs && s.NowMs - _lastProgressMs >= stallMs * 3;
 		if (restart) _lastRestartMs = s.NowMs;
 		return new WatchdogVerdict(opened, null, restart);

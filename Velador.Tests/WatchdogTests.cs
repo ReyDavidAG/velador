@@ -81,6 +81,18 @@ public class WatchdogTests
 	}
 
 	[Fact]
+	public void A_media_server_that_stops_answering_is_restarted_too()
+	{
+		var dog = new Watchdog();
+		dog.Observe(Flowing(0, 100));
+		dog.Observe(Flowing(1000, 200));
+		var restarted = false;
+		for (var t = 2000; t <= 20_000; t += 1000) restarted |= dog.Observe(new WatchdogSample(t, false, false, 0, true, true)).RestartMedia;
+
+		Assert.True(restarted);
+	}
+
+	[Fact]
 	public void An_unreachable_camera_or_a_rejected_password_never_restarts_the_media_server()
 	{
 		var dog = new Watchdog();

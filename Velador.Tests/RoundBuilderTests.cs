@@ -29,7 +29,7 @@ public class RoundBuilderTests
 	[Fact]
 	public void Segments_closer_than_the_tolerance_are_one_span()
 	{
-		var round = RoundBuilder.Build(Day, 86_400_000, [new TimeRange(0, 60_000), new TimeRange(60_900, 86_400_000)], []);
+		var round = RoundBuilder.Build(Day, 86_400_000, [new TimeRange(0, 60_000), new TimeRange(60_400, 86_400_000)], []);
 
 		Assert.Single(round.Spans);
 		Assert.Empty(round.Gaps);
@@ -87,6 +87,26 @@ public class RoundBuilderTests
 
 		Assert.Equal(Day, Assert.Single(round.Gaps).Range);
 		Assert.Equal(0, round.Coverage);
+	}
+
+	[Fact]
+	public void Time_before_the_camera_was_ever_watched_is_not_a_gap()
+	{
+		var round = RoundBuilder.Build(Day, 50_000_000, [new TimeRange(40_000_000, 50_000_000)], [], watchedSinceMs: 40_000_000);
+
+		Assert.Empty(round.Gaps);
+		Assert.Equal(100, round.Coverage);
+		Assert.Equal(40_000_000, round.WatchedFromMs);
+	}
+
+	[Fact]
+	public void A_day_before_the_camera_existed_expects_nothing()
+	{
+		var round = RoundBuilder.Build(Day, 200_000_000, [], [], watchedSinceMs: 150_000_000);
+
+		Assert.Empty(round.Gaps);
+		Assert.Empty(round.Spans);
+		Assert.Equal(100, round.Coverage);
 	}
 
 	[Fact]

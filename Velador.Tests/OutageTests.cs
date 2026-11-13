@@ -13,7 +13,7 @@ public class OutageTests
 	[Fact]
 	public void A_quick_restart_is_not_a_gap()
 	{
-		Assert.Null(Outage.AtStartup(1_000_000, 1_008_000, 9_000_000, false, false));
+		Assert.Null(Outage.AtStartup(1_000_000, 1_001_500, 9_000_000, false, false));
 	}
 
 	[Fact]

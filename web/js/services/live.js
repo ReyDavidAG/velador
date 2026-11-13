@@ -8,11 +8,16 @@ const gathered = pc =>
 
 const received = async pc => {
 	let bytes = 0
-	for (const report of (await pc.getStats()).values()) if (report.type === 'inbound-rtp') bytes += report.bytesReceived ?? 0
-	return bytes
+	let shape = null
+	for (const report of (await pc.getStats()).values()) {
+		if (report.type !== 'inbound-rtp') continue
+		bytes += report.bytesReceived ?? 0
+		if (report.kind === 'video') shape = { width: report.frameWidth ?? 0, height: report.frameHeight ?? 0, fps: report.framesPerSecond ?? 0, videoBytes: report.bytesReceived ?? 0 }
+	}
+	return { bytes, shape }
 }
 
-export const watchLive = (cameraId, video, onState) => {
+export const watchLive = (cameraId, video, onState, { stream = 'main', onStats = () => {} } = {}) => {
 	let pc = null
 	let session = null
 	let retry = 0
@@ -20,6 +25,7 @@ export const watchLive = (cameraId, video, onState) => {
 	let lastBytes = -1
 	let stalls = 0
 	let hiddenAt = 0
+	let lastVideo = null
 
 	const stop = () => {
 		if (session) fetch(session, { method: 'DELETE', credentials: 'same-origin' }).catch(() => {})
@@ -28,6 +34,7 @@ export const watchLive = (cameraId, video, onState) => {
 		pc = null
 		lastBytes = -1
 		stalls = 0
+		lastVideo = null
 	}
 
 	const again = () => {
@@ -55,7 +62,7 @@ export const watchLive = (cameraId, video, onState) => {
 			})
 			await mine.setLocalDescription(await mine.createOffer())
 			await gathered(mine)
-			const response = await fetch(`/api/cameras/${cameraId}/live`, {
+			const response = await fetch(`/api/cameras/${cameraId}/live?stream=${stream}`, {
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/sdp' },
@@ -73,8 +80,14 @@ export const watchLive = (cameraId, video, onState) => {
 	const pulse = setInterval(async () => {
 		if (closed || !pc || pc.connectionState !== 'connected') return
 		const mine = pc
-		const bytes = await received(mine).catch(() => -1)
+		const { bytes, shape } = await received(mine).catch(() => ({ bytes: -1, shape: null }))
 		if (pc !== mine) return
+		if (shape) {
+			const now = performance.now()
+			const kbps = lastVideo ? ((shape.videoBytes - lastVideo.bytes) * 8) / (now - lastVideo.at) : 0
+			lastVideo = { bytes: shape.videoBytes, at: now }
+			onStats({ width: shape.width, height: shape.height, fps: shape.fps, kbps })
+		}
 		stalls = bytes > lastBytes ? 0 : stalls + 1
 		lastBytes = bytes
 		if (stalls >= 2) again()

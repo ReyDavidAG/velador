@@ -37,7 +37,7 @@ public sealed class EventService(EngineSettings settings, CameraLinks links, Eng
 		{
 			foreach (var camera in settings.Cameras.ToList())
 			{
-				if (watching.TryGetValue(camera.Id, out var known) && known.Camera == camera) continue;
+				if (watching.TryGetValue(camera.Id, out var known) && known.Camera with { Serial = camera.Serial } == camera) continue;
 				known.Stop?.Cancel();
 				var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
 				watching[camera.Id] = (stop, camera);

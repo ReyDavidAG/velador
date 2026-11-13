@@ -52,6 +52,12 @@ public sealed partial class OnvifClient(HttpClient http, Camera camera, string p
 		return _profile;
 	}
 
+	public async Task<string> SerialAsync(CancellationToken ct)
+	{
+		var xml = XDocument.Parse(await CallAsync($"http://{camera.Host}:{camera.OnvifPort}/onvif/device_service", "<GetDeviceInformation xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>", TimeSpan.FromSeconds(4), ct));
+		return xml.Descendants().FirstOrDefault(e => e.Name.LocalName == "SerialNumber")?.Value.Trim() ?? "";
+	}
+
 	public async Task<string> ModelAsync(CancellationToken ct)
 	{
 		var xml = XDocument.Parse(await CallAsync($"http://{camera.Host}:{camera.OnvifPort}/onvif/device_service", "<GetDeviceInformation xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>", TimeSpan.FromSeconds(6), ct));

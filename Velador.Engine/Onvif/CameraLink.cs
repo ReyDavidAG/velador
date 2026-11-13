@@ -9,6 +9,11 @@ public sealed class CameraLinks(EngineSettings settings, ISecretStore secrets, H
 	readonly Dictionary<string, OnvifClient> _clients = [];
 	readonly Lock _lock = new();
 
+	public void Forget(string cameraId)
+	{
+		lock (_lock) _clients.Remove(cameraId);
+	}
+
 	public OnvifClient? For(string cameraId)
 	{
 		lock (_lock)
@@ -25,7 +30,27 @@ public sealed class EventService(EngineSettings settings, CameraLinks links, Eng
 {
 	const long MaxEventMs = 120_000;
 
-	protected override Task ExecuteAsync(CancellationToken ct) => Task.WhenAll(settings.Cameras.Select(camera => WatchAsync(camera, ct)));
+	protected override async Task ExecuteAsync(CancellationToken ct)
+	{
+		var watching = new Dictionary<string, (CancellationTokenSource Stop, Camera Camera)>();
+		while (!ct.IsCancellationRequested)
+		{
+			foreach (var camera in settings.Cameras.ToList())
+			{
+				if (watching.TryGetValue(camera.Id, out var known) && known.Camera == camera) continue;
+				known.Stop?.Cancel();
+				var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+				watching[camera.Id] = (stop, camera);
+				_ = WatchAsync(camera, stop.Token);
+			}
+			foreach (var gone in watching.Keys.Where(id => settings.Cameras.All(c => c.Id != id)).ToList())
+			{
+				watching[gone].Stop.Cancel();
+				watching.Remove(gone);
+			}
+			await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+		}
+	}
 
 	long Now => time.GetUtcNow().ToUnixTimeMilliseconds();
 

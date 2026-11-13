@@ -158,9 +158,10 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 - [x] Huecos y estado en SQLite. Los tramos salen de la lista de MediaMTX, que ya funde segmentos contiguos: no hizo falta tabla de segmentos ni avisos de segmento.
 - [x] API con sesión: `summary`, `rounds/{date}`, `media`, `live`.
 - [x] API: `ptz` (posición y giro relativo) y sucesos dentro de la ronda.
-- [ ] API: `cameras` (alta y edición desde la app), `clips`, `settings`. Contrato en `docs/api.md`.
-- [ ] Descubrimiento ONVIF, alta con IP a mano, errores de cuenta de cámara; la cámara se identifica por MAC para sobrevivir a un cambio de IP.
-- [ ] Miniaturas desde `stream2`.
+- [x] API: `cameras` (alta, edición, baja, prueba y descubrimiento), `clips`, `settings` y almacenamiento. Contrato en `docs/api.md`.
+- [x] Descubrimiento ONVIF, alta con IP a mano y prueba de cuenta.
+- [ ] Identificar la cámara por MAC para sobrevivir a un cambio de IP.
+- [x] Miniaturas: se piden por rango a `stream2` y las pinta el navegador; no hizo falta FFmpeg.
 - [x] Retención por días y por disco, con piso de espacio libre; nunca borra el archivo en curso ni lo que cubre un recorte.
 - [ ] Modo demo (`VELADOR_DEMO=1`) con datos ficticios.
 - **Listo cuando** graba 24 h con cobertura de 100 % y pasa la matriz de continuidad: reposo y despertar, tapa cerrada, cierre de sesión, `kill -STOP` a MediaMTX, reinicio de la cámara y del router, disco lleno y cambio de hora; cada caso deja su hueco con la causa correcta.
@@ -169,8 +170,8 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 
 - [x] En vivo por WebRTC y Ronda (video por rango, arrastre, zoom, saltar huecos, velocidad) en `web/` contra la API real, con las tipografías empaquetadas.
 - [x] PTZ en En vivo (botones y flechas del teclado) y sucesos marcados y listados en la Ronda.
-- [ ] Recorte y vista previa al pasar el cursor (necesita miniaturas).
-- [ ] Recortes, Cámaras, Continuidad, Ajustes y Bienvenida (con el permiso de Red local de macOS).
+- [x] Recorte con asas y vista previa al pasar el cursor (sale de `stream2` por rango, sin FFmpeg).
+- [x] Sucesos, Recortes, Cámaras, Continuidad, Ajustes y Bienvenida.
 - [ ] Calendario para ir más allá de la última semana; pausar la guardia; borrar un día o un tramo.
 - [ ] Todos los estados de la guardia, no sólo el feliz.
 - [ ] `node --test` de lo puro (tiempo, ronda) y recorrido en Chrome y WebKit a 375, 768 y 1280 px.
@@ -187,12 +188,22 @@ Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`
 ### 5 · Sucesos y avisos
 
 - [x] El motor se suscribe a los eventos de la cámara por ONVIF y los guarda. Sin comprobar con un evento real: la cámara no emitió ninguno durante la prueba.
-- [ ] Vista de Sucesos y aviso del sistema por persona.
+- [x] Vista de Sucesos y aviso del sistema por persona. Los eventos de movimiento ya llegaron de la cámara real; el de persona no se ha visto todavía.
 - [ ] Opcional: aviso al celular por ntfy (sale de la red: sólo texto, sin imagen; se puede apuntar a un servidor propio).
 
 ### 6 · Más allá
 
 - [ ] Motor en un equipo siempre prendido y esta app como visor. Acceso por Tailscale. Mosaico de cámaras. Detección propia si los eventos de la cámara no bastan.
+
+## Disco externo
+
+Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.
+
+- Si el disco no está (o se desconecta de golpe), el motor pasa a grabar en `~/Movies/Velador` en unos 3 segundos y lo dice en la interfaz.
+- Cuando vuelve, regresa al disco y se lleva lo que quedó en la Mac. Los recortes se quedan donde se guardaron.
+- «Preparar para expulsar» suelta el disco 10 minutos para poder desconectarlo sin forzar.
+- La retención cuenta el disco donde se está grabando.
+- Mientras el disco está fuera, lo grabado en él no aparece en la ronda.
 
 ## Fuera de la primera versión
 

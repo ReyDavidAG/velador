@@ -1,6 +1,9 @@
 using Velador.Core;
 using Velador.Engine;
 using Velador.Engine.Api;
+using Velador.Engine.Cli;
+using Velador.Engine.Power;
+using Velador.Engine.Secrets;
 using Velador.Engine.MediaMtx;
 using Velador.Engine.Onvif;
 using Velador.Engine.Sqlite;
@@ -400,5 +403,43 @@ public class RelocationTests
 		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.77", 2020, "OTHER")]));
 		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.16", 2020, "ABC123")]));
 		Assert.Null(Camera.Relocated(Entrada, [("192.168.1.77", 2020, "ABC123"), ("192.168.1.78", 2020, "ABC123")]));
+	}
+}
+
+public class WindowsTests
+{
+	[Fact]
+	public void The_logon_task_runs_the_engine_for_this_user_and_restarts_it()
+	{
+		var xml = System.Xml.Linq.XDocument.Parse(Commands.TaskXml(@"C:\Users\Ana & Luis\Velador\Velador.Engine.exe", @"PC\ana").Replace("encoding=\"UTF-16\"", ""));
+		string Value(string name) => xml.Descendants().First(e => e.Name.LocalName == name).Value;
+
+		Assert.Equal(@"C:\Users\Ana & Luis\Velador\Velador.Engine.exe", Value("Command"));
+		Assert.Equal(@"PC\ana", Value("UserId"));
+		Assert.Equal("PT0S", Value("ExecutionTimeLimit"));
+		Assert.Equal("false", Value("StopIfGoingOnBatteries"));
+		Assert.Equal("PT1M", Value("Interval"));
+	}
+
+	[Fact]
+	public void The_credential_manager_keeps_and_returns_a_secret()
+	{
+		if (!OperatingSystem.IsWindows()) return;
+		var store = new WindowsCredentialStore();
+		var id = $"prueba{Environment.ProcessId}";
+		store.Set(id, "p@ss wörd/1.");
+
+		Assert.Equal("p@ss wörd/1.", store.Get(id));
+		Assert.Null(store.Get($"{id}no"));
+	}
+
+	[Fact]
+	public void The_power_request_turns_on_and_off()
+	{
+		if (!OperatingSystem.IsWindows()) return;
+		using var guard = new WindowsPowerGuard();
+		guard.KeepAwake(true);
+		guard.KeepAwake(true);
+		guard.KeepAwake(false);
 	}
 }

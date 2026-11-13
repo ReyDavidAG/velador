@@ -8,6 +8,7 @@ using Velador.Engine.Power;
 using Velador.Engine.Secrets;
 using Velador.Engine.Sqlite;
 using Velador.Engine.Tapo;
+using Velador.Engine.Vision;
 
 var paths = EnginePaths.Resolve();
 if (Commands.Run(args, paths) is { } exit) return exit;
@@ -48,6 +49,8 @@ builder.Services.AddHostedService<EventService>();
 builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
 builder.Services.AddSingleton<RelocateService>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RelocateService>());
+builder.Services.AddSingleton<VisionService>();
+builder.Services.AddHostedService(s => s.GetRequiredService<VisionService>());
 
 var app = builder.Build();
 app.UseSession(session);

@@ -20,6 +20,7 @@ public static class Endpoints
 		api.MapPost("/cameras/{id}/recording", Recording);
 		api.MapManagement();
 		api.MapTapo();
+		api.MapVision();
 		api.MapPost("/cameras/{id}/live", (string id, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, context, settings, media));
 	}
@@ -120,13 +121,15 @@ public static class Endpoints
 		}
 	}
 
-	static async Task<IResult> Move(string id, MoveRequest move, CameraLinks links, CancellationToken ct)
+	static async Task<IResult> Move(string id, MoveRequest move, EngineSettings settings, CameraLinks links, Velador.Engine.Vision.VisionService vision, CancellationToken ct)
 	{
-		if (links.For(id) is not { } onvif) return Results.NotFound();
+		if (links.For(id) is not { } onvif || settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera) return Results.NotFound();
 		if (!double.IsFinite(move.X) || !double.IsFinite(move.Y)) return Results.BadRequest();
 		try
 		{
-			await onvif.MoveAsync(move.X, move.Y, ct);
+			vision.ManualMove(id);
+			var (x, y) = vision.ManualToCamera(camera, move.X, move.Y);
+			await onvif.MoveAsync(x, y, ct);
 			return Results.NoContent();
 		}
 		catch (Exception e) when (e is HttpRequestException or OperationCanceledException or System.Xml.XmlException)

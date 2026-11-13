@@ -13,6 +13,9 @@ public sealed class EngineSettings
 	public List<Camera> Cameras { get; set; } = [];
 	public Dictionary<string, List<KnownNetwork>> Networks { get; set; } = [];
 	public Dictionary<string, long> Paused { get; set; } = [];
+	public bool DetectPeople { get; set; } = true;
+	public List<string> Follow { get; set; } = [];
+	public Dictionary<string, PtzCalibration> Calibrations { get; set; } = [];
 
 	[System.Text.Json.Serialization.JsonIgnore]
 	public int Revision { get; set; }
@@ -29,6 +32,8 @@ public sealed class EngineSettings
 
 	public void Save(EnginePaths paths) => File.WriteAllText(paths.Settings, JsonSerializer.Serialize(this, Json));
 }
+
+public sealed record PtzCalibration(double GainX, double GainY, double LagS, bool InvertX, bool InvertY, bool Continuous, long AtMs);
 
 public sealed class EnginePaths
 {
@@ -56,6 +61,25 @@ public sealed class EnginePaths
 		}
 	}
 
+	public static string? Ffmpeg()
+	{
+		var name = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+		if (Environment.GetEnvironmentVariable("VELADOR_FFMPEG") is { Length: > 0 } custom) return custom;
+		var beside = Path.Combine(AppContext.BaseDirectory, "ffmpeg", name);
+		if (File.Exists(beside)) return beside;
+		foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator).Concat(["/opt/homebrew/bin", "/usr/local/bin"]))
+			if (dir.Length > 0 && File.Exists(Path.Combine(dir, name))) return Path.Combine(dir, name);
+		return null;
+	}
+
+	public static string? PersonModel()
+	{
+		var file = Environment.GetEnvironmentVariable("VELADOR_MODEL") ?? Path.Combine(AppContext.BaseDirectory, "models", "yolox_tiny.onnx");
+		return File.Exists(file) ? file : null;
+	}
+
+	public string Sightings => Path.Combine(Home, "sightings");
+
 	public static string? WebRoot()
 	{
 		var beside = Path.Combine(AppContext.BaseDirectory, "web");
@@ -69,7 +93,7 @@ public sealed class EnginePaths
 			?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velador"));
 }
 
-public sealed record MediaPorts(int Api, int WebRtc, int WebRtcUdp, int Playback)
+public sealed record MediaPorts(int Api, int WebRtc, int WebRtcUdp, int Playback, int Rtsp)
 {
-	public static MediaPorts From(int enginePort) => new(enginePort + 1, enginePort + 2, enginePort + 3, enginePort + 4);
+	public static MediaPorts From(int enginePort) => new(enginePort + 1, enginePort + 2, enginePort + 3, enginePort + 4, enginePort + 5);
 }

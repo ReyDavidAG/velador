@@ -11,7 +11,7 @@ namespace Velador.Engine.Api;
 
 public static class ManageEndpoints
 {
-	public sealed record SettingsRequest(string? RecordingsDir, int RetentionDays, int RetentionPercent, bool KeepAwake);
+	public sealed record SettingsRequest(string? RecordingsDir, int RetentionDays, int RetentionPercent, bool KeepAwake, bool? DetectPeople = null);
 
 	public sealed record CameraRequest(string Name, string Host, string User, string? Password, int Rotation, string? TapoPassword = null);
 
@@ -87,6 +87,8 @@ public static class ManageEndpoints
 		retentionDays = settings.RetentionDays,
 		retentionPercent = settings.RetentionPercent,
 		keepAwake = settings.KeepAwake,
+		detectPeople = settings.DetectPeople,
+		detectorReady = EnginePaths.Ffmpeg() is not null && EnginePaths.PersonModel() is not null,
 		disk = Endpoints.Disk(storage.Active),
 		outlook = outlook is null ? null : new { outlook.RecordedBytes, outlook.OldestMs, outlook.BytesPerDay, outlook.DaysThatFit, outlook.LimitedBy, outlook.NextDeletionMs },
 		volumes = Storage.Volumes().Select(v => new { v.Name, v.Path, v.TotalBytes, v.FreeBytes, suggested = Path.Combine(v.Path, "Velador") }),
@@ -105,6 +107,7 @@ public static class ManageEndpoints
 		settings.RetentionDays = request.RetentionDays;
 		settings.RetentionPercent = request.RetentionPercent;
 		settings.KeepAwake = request.KeepAwake;
+		if (request.DetectPeople is { } detect) settings.DetectPeople = detect;
 		settings.Save(paths);
 		storage.Reclaim();
 		return Results.Ok(SettingsView(settings, storage, store, time));

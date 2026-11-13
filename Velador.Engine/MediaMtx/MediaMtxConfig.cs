@@ -11,37 +11,39 @@ public static class MediaMtxConfig
 	{
 		var dir = recordingsDir.Replace('\\', '/').Replace("'", "''");
 		var yaml = new StringBuilder();
-		yaml.AppendLine("logLevel: info");
-		yaml.AppendLine("logDestinations: [stdout]");
-		yaml.AppendLine("api: yes");
-		yaml.AppendLine($"apiAddress: 127.0.0.1:{ports.Api}");
-		foreach (var off in new[] { "metrics", "pprof", "rtsp", "rtmp", "hls", "srt", "moq" }) yaml.AppendLine($"{off}: no");
-		yaml.AppendLine("webrtc: yes");
-		yaml.AppendLine($"webrtcAddress: 127.0.0.1:{ports.WebRtc}");
-		yaml.AppendLine($"webrtcLocalUDPAddress: 127.0.0.1:{ports.WebRtcUdp}");
-		yaml.AppendLine("webrtcIPsFromInterfaces: no");
-		yaml.AppendLine("webrtcAdditionalHosts: [127.0.0.1]");
-		yaml.AppendLine("webrtcAllowOrigins: []");
-		yaml.AppendLine("playback: yes");
-		yaml.AppendLine($"playbackAddress: 127.0.0.1:{ports.Playback}");
-		yaml.AppendLine("playbackAllowOrigins: []");
-		yaml.AppendLine("pathDefaults:");
-		yaml.AppendLine("  rtspTransport: tcp");
-		yaml.AppendLine("  record: yes");
-		yaml.AppendLine("  recordFormat: fmp4");
-		yaml.AppendLine("  recordPartDuration: 1s");
-		yaml.AppendLine("  recordSegmentDuration: 1h");
-		yaml.AppendLine("  recordDeleteAfter: 0s");
-		yaml.AppendLine($"  recordPath: '{dir}/%path/%Y-%m-%d_%H-%M-%S-%f%z'");
-		yaml.AppendLine("paths:");
+		Line(yaml, "logLevel: info");
+		Line(yaml, "logDestinations: [stdout]");
+		Line(yaml, "api: yes");
+		Line(yaml, $"apiAddress: 127.0.0.1:{ports.Api}");
+		foreach (var off in new[] { "metrics", "pprof", "rtsp", "rtmp", "hls", "srt", "moq" }) Line(yaml, $"{off}: no");
+		Line(yaml, "webrtc: yes");
+		Line(yaml, $"webrtcAddress: 127.0.0.1:{ports.WebRtc}");
+		Line(yaml, $"webrtcLocalUDPAddress: 127.0.0.1:{ports.WebRtcUdp}");
+		Line(yaml, "webrtcIPsFromInterfaces: no");
+		Line(yaml, "webrtcAdditionalHosts: [127.0.0.1]");
+		Line(yaml, "webrtcAllowOrigins: []");
+		Line(yaml, "playback: yes");
+		Line(yaml, $"playbackAddress: 127.0.0.1:{ports.Playback}");
+		Line(yaml, "playbackAllowOrigins: []");
+		Line(yaml, "pathDefaults:");
+		Line(yaml, "  rtspTransport: tcp");
+		Line(yaml, "  record: yes");
+		Line(yaml, "  recordFormat: fmp4");
+		Line(yaml, "  recordPartDuration: 1s");
+		Line(yaml, "  recordSegmentDuration: 1h");
+		Line(yaml, "  recordDeleteAfter: 0s");
+		Line(yaml, $"  recordPath: '{dir}/%path/%Y-%m-%d_%H-%M-%S-%f%z'");
+		Line(yaml, "paths:");
 		foreach (var camera in cameras)
 			foreach (var stream in new[] { Camera.MainStream, Camera.MinorStream })
 			{
-				yaml.AppendLine($"  {camera.MediaPath(stream)}:");
-				yaml.AppendLine($"    source: {PlaceholderSource}");
+				Line(yaml, $"  {camera.MediaPath(stream)}:");
+				Line(yaml, $"    source: {PlaceholderSource}");
 			}
 		return yaml.ToString();
 	}
+
+	static void Line(StringBuilder yaml, string text) => yaml.Append(text).Append('\n');
 
 	public static Dictionary<string, string> SourceEnvironment(IEnumerable<Camera> cameras, Func<Camera, string?> password)
 	{

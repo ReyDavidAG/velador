@@ -135,6 +135,10 @@ const mount = main => {
 		if (!rt?.classList.contains('dragging')) follow()
 		frame()
 		clearTimeout(loadTimer)
+		if (chunk && state.t >= chunk.start && state.t < chunk.start + chunk.len - 1 && video.readyState >= 1) {
+			video.currentTime = state.t - chunk.start
+			return
+		}
 		if (lazy) loadTimer = setTimeout(load, 160)
 		else load()
 	}

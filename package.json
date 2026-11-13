@@ -1,0 +1,15 @@
+{
+	"name": "velador",
+	"version": "0.1.0",
+	"description": "Graba y cuida tu cámara IP sin nube.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"desktop:dev": "tauri dev --config desktop/src-tauri/tauri.conf.json",
+		"desktop:build": "tauri build --config desktop/src-tauri/tauri.conf.json"
+	},
+	"devDependencies": {
+		"@tauri-apps/cli": "2.12.4"
+	}
+}

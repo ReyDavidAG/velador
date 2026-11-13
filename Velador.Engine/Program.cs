@@ -1,5 +1,6 @@
 using Velador.Engine;
 using Velador.Engine.Api;
+using Velador.Engine.Cli;
 using Velador.Engine.Continuity;
 using Velador.Engine.MediaMtx;
 using Velador.Engine.Power;
@@ -7,11 +8,12 @@ using Velador.Engine.Secrets;
 using Velador.Engine.Sqlite;
 
 var paths = EnginePaths.Resolve();
+if (Commands.Run(args, paths) is { } exit) return exit;
 var settings = EngineSettings.Load(paths);
 if (int.TryParse(Environment.GetEnvironmentVariable("VELADOR_PORT"), out var port)) settings.Port = port;
 var session = new Session(paths, settings.Port);
 
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, WebRootPath = Environment.GetEnvironmentVariable("VELADOR_WEB") });
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, WebRootPath = EnginePaths.WebRoot() });
 builder.WebHost.UseUrls($"http://127.0.0.1:{settings.Port}");
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
@@ -27,6 +29,7 @@ builder.Services.AddSingleton(PowerGuards.ForThisPlatform());
 builder.Services.AddSingleton<IReachability, NetworkReachability>();
 builder.Services.AddSingleton(new HttpClient(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan });
 builder.Services.AddSingleton<MediaMtxClient>();
+builder.Services.AddSingleton<MediaCache>();
 builder.Services.AddSingleton<MediaSupervisor>();
 builder.Services.AddSingleton<ContinuityService>();
 builder.Services.AddHostedService(s => s.GetRequiredService<MediaSupervisor>());
@@ -43,5 +46,6 @@ if (app.Environment.WebRootPath is not null)
 }
 app.MapEngine();
 app.Run();
+return 0;
 
 public partial class Program;

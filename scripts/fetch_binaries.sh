@@ -16,7 +16,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 curl -fsSL -o "$WORK/$ASSET" "$BASE/$ASSET"
 curl -fsSL -o "$WORK/checksums.sha256" "$BASE/checksums.sha256"
-(cd "$WORK" && grep " $ASSET\$" checksums.sha256 | shasum -a 256 -c -)
+(cd "$WORK" && grep "$ASSET" checksums.sha256 | shasum -a 256 -c -)
 mkdir -p "$DEST"
 tar -xzf "$WORK/$ASSET" -C "$DEST" mediamtx LICENSE
 echo "MediaMTX $VERSION en $DEST/mediamtx"

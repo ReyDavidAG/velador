@@ -70,26 +70,15 @@ public static class Endpoints
 		});
 	}
 
-	static async Task Media(string id, long startMs, long durationMs, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media, IHostApplicationLifetime lifetime)
+	static async Task<IResult> Media(string id, long startMs, long durationMs, string? stream, EngineSettings settings, MediaCache cache, IHostApplicationLifetime lifetime, CancellationToken ct)
 	{
-		using var stop = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
 		var camera = settings.Cameras.FirstOrDefault(c => c.Id == id);
 		var path = stream is null or Camera.MainStream ? Camera.MainStream : stream == Camera.MinorStream ? Camera.MinorStream : null;
-		if (camera is null || path is null || durationMs is <= 0 or > 3_600_000)
-		{
-			context.Response.StatusCode = camera is null ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest;
-			return;
-		}
-		using var upstream = await media.MediaAsync(camera.MediaPath(path), startMs, durationMs / 1000.0, stop.Token);
-		context.Response.StatusCode = upstream.IsSuccessStatusCode ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
-		if (!upstream.IsSuccessStatusCode) return;
-		context.Response.ContentType = "video/mp4";
-		context.Response.Headers.CacheControl = "private, max-age=3600";
-		try
-		{
-			await upstream.Content.CopyToAsync(context.Response.Body, stop.Token);
-		}
-		catch (OperationCanceledException) { }
+		if (camera is null) return Results.NotFound();
+		if (path is null || startMs <= 0 || durationMs is <= 0 or > 600_000) return Results.BadRequest();
+		using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct, lifetime.ApplicationStopping);
+		var file = await cache.FileAsync(camera.MediaPath(path), startMs, durationMs, stop.Token);
+		return file is null ? Results.NotFound() : Results.File(file, "video/mp4", enableRangeProcessing: true);
 	}
 
 	static async Task Whep(string id, string? session, HttpContext context, EngineSettings settings, MediaMtxClient media)

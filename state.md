@@ -39,6 +39,15 @@
 - `web/` servida por el motor: En vivo (WebRTC reenviado por el motor) y Ronda (reproductor sobre las grabaciones, por rango). Probado en Chrome contra la cámara real: imagen en vivo 1080p, reproducción, salto atrás, 2× y cobertura del día.
 - Faltan en `web/`: Sucesos, Recortes, Cámaras, Continuidad, Ajustes y Bienvenida (dependen de API que aún no existe), y probar en WebKit.
 
+## Escritorio e instalación en macOS (2026-11-12)
+
+- `desktop/` con Tauri 2: 13 pruebas en Rust, `fmt` y `clippy -D warnings` limpios. `Velador.app` pesa 3.6 MB, firma ad-hoc.
+- Instalado en esta Mac: motor autocontenido en `~/Library/Application Support/Velador/engine/0.1.0`, LaunchAgent `com.reydavidag.velador.engine`, cámara «Entrada» dada de alta con la contraseña en el llavero, grabando en `~/Movies/Velador`.
+- Comprobado: el servicio lee la contraseña del llavero y graba; la ventana abre con sesión y su vivo conecta (sesión WebRTC establecida vista en MediaMTX); En vivo y Ronda reproducen en WebKit (prueba automatizada con el WebKit de Playwright).
+- Hallazgo: WebKit exige rangos para `<video>`; el motor ahora baja cada tramo a una caché en disco (16 archivos como máximo) y lo sirve con rangos. De paso, moverse dentro de un tramo ya no vuelve a pedirlo.
+- Sin comprobar a ojo: la ventana real (no hay permiso de captura de pantalla en esta sesión), los avisos del sistema y el arranque tras reiniciar la Mac.
+- Con el disco actual (75 % ocupado y límite en 80 %) caben alrededor de día y medio de grabación antes de que la retención empiece a borrar.
+
 ## Repositorio
 
 `github.com/ReyDavidAG/velador`, público, con `main`, `develop` y ramas `feature/*`. Commits de una línea con el correo de Bitácora.

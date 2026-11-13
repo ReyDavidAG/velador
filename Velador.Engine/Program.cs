@@ -7,6 +7,7 @@ using Velador.Engine.Onvif;
 using Velador.Engine.Power;
 using Velador.Engine.Secrets;
 using Velador.Engine.Sqlite;
+using Velador.Engine.Tapo;
 
 var paths = EnginePaths.Resolve();
 if (Commands.Run(args, paths) is { } exit) return exit;
@@ -40,6 +41,7 @@ builder.Services.AddSingleton(storage);
 builder.Services.AddSingleton<IRecordingStore>(new RecordingStore(() => storage.Active));
 builder.Services.AddHostedService<RetentionService>();
 builder.Services.AddSingleton<CameraLinks>();
+builder.Services.AddSingleton<TapoLinks>();
 builder.Services.AddHostedService<EventService>();
 builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
 builder.Services.AddSingleton<RelocateService>();

@@ -5,6 +5,7 @@ using Velador.Engine.MediaMtx;
 using Velador.Engine.Onvif;
 using Velador.Engine.Secrets;
 using Velador.Engine.Sqlite;
+using Velador.Engine.Tapo;
 
 namespace Velador.Engine.Api;
 
@@ -12,7 +13,7 @@ public static class ManageEndpoints
 {
 	public sealed record SettingsRequest(string? RecordingsDir, int RetentionDays, int RetentionPercent, bool KeepAwake);
 
-	public sealed record CameraRequest(string Name, string Host, string User, string? Password, int Rotation);
+	public sealed record CameraRequest(string Name, string Host, string User, string? Password, int Rotation, string? TapoPassword = null);
 
 	public sealed record TestRequest(string Host, string User, string? Password, string? Id);
 
@@ -129,7 +130,7 @@ public static class ManageEndpoints
 		}
 	}
 
-	static IResult SaveCamera(string id, CameraRequest request, EngineSettings settings, EnginePaths paths, ISecretStore secrets, CameraLinks links)
+	static IResult SaveCamera(string id, CameraRequest request, EngineSettings settings, EnginePaths paths, ISecretStore secrets, CameraLinks links, TapoLinks tapo)
 	{
 		if (!Camera.IsValidId(id)) return Results.BadRequest(new { error = "El identificador sólo lleva minúsculas y números." });
 		if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Host) || string.IsNullOrWhiteSpace(request.User)) return Results.BadRequest(new { error = "Faltan el nombre, la dirección o el usuario." });
@@ -137,6 +138,8 @@ public static class ManageEndpoints
 		var existing = settings.Cameras.FirstOrDefault(c => c.Id == id);
 		if (existing is null && string.IsNullOrEmpty(request.Password)) return Results.BadRequest(new { error = "Falta la contraseña de la cuenta de cámara." });
 		if (!string.IsNullOrEmpty(request.Password)) secrets.Set(id, request.Password);
+		if (!string.IsNullOrEmpty(request.TapoPassword)) secrets.Set(TapoLinks.SecretId(id), request.TapoPassword);
+		tapo.Forget(id);
 		var camera = (existing ?? new Camera(id, "", "", "")) with { Name = request.Name.Trim(), Host = request.Host.Trim(), User = request.User.Trim(), Rotation = request.Rotation };
 		settings.Cameras.RemoveAll(c => c.Id == id);
 		settings.Cameras.Add(camera);

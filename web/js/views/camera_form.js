@@ -15,6 +15,7 @@ export const cameraFormHtml = (camera = null) => `
 		<label class="field"><span>Dirección de la cámara</span><input name="host" type="text" value="${esc(camera?.host ?? '')}" placeholder="192.168.1.20" autocomplete="off" spellcheck="false" required /></label>
 		<label class="field"><span>Usuario de la cuenta de cámara</span><input name="user" type="text" value="${esc(camera?.user ?? '')}" autocomplete="off" spellcheck="false" required /></label>
 		<label class="field"><span>Contraseña${camera ? ' (déjala vacía para no cambiarla)' : ''}</span><input name="password" type="password" autocomplete="new-password" /></label>
+		<label class="field"><span>Contraseña de tu cuenta Tapo (opcional: para la luz, voltear la imagen y el WiFi)</span><input name="tapoPassword" type="password" autocomplete="new-password" /></label>
 		<div class="set-row"><div class="set-text"><b>Girar la imagen 180°</b><small>Si la cámara está montada de cabeza.</small></div>${toggle('rotation', camera?.rotation === 180, 'Girar la imagen')}</div>
 		<p class="note">${I.lock}<span>La contraseña se guarda en el llavero de tu sistema, nunca en un archivo. En la app Tapo se crea en Ajustes de la cámara › Avanzado › Cuenta de cámara.</span></p>
 		<ul class="results" data-results hidden></ul>
@@ -85,7 +86,7 @@ export const bindCameraForm = (root, { onSaved, onCancel }) => {
 		submit.disabled = true
 		try {
 			const id = form.dataset.id || slug(v.name)
-			await api.saveCamera(id, { name: v.name, host: v.host, user: v.user, password: v.password || null, rotation: rotation ? 180 : 0 })
+			await api.saveCamera(id, { name: v.name, host: v.host, user: v.user, password: v.password || null, tapoPassword: v.tapoPassword || null, rotation: rotation ? 180 : 0 })
 			onSaved?.(id)
 		} catch (err) {
 			error.textContent = err.message

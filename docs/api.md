@@ -11,6 +11,9 @@ Todo bajo `http://127.0.0.1:8352/api`, con sesión (cookie `velador_session` o c
 | `GET /cameras/{id}/ptz` · `POST /cameras/{id}/ptz` `{x,y}` | Posición y giro relativo (−1 a 1). |
 | `GET /cameras` · `PUT /cameras/{id}` · `DELETE /cameras/{id}` | Alta, edición y baja. La contraseña sólo entra; nunca sale. |
 | `POST /cameras/{id}/networks/{red}/use` · `DELETE /cameras/{id}/networks/{red}` | Usar la dirección recordada de una red, u olvidarla. Hasta 3 redes por cámara. |
+| `GET /cameras/{id}/extras` | Luz blanca, modo de noche y volteo, leídos por el protocolo de Tapo. |
+| `POST /cameras/{id}/light` `{on}` · `PUT /cameras/{id}/night` `{mode}` · `PUT /cameras/{id}/flip` `{on}` | Encender la luz, elegir `infrared`, `white` o `smart`, y voltear la imagen en la cámara. |
+| `GET /cameras/{id}/wifi` · `POST /cameras/{id}/wifi` `{ssid,password}` | Redes que ve la cámara, y pasarla a otra. |
 | `GET /cameras/discover` | Cámaras ONVIF que responden en la red local. |
 | `POST /cameras/test` `{host,user,password\|id}` | Comprueba red y cuenta sin guardar nada. |
 | `GET /settings` · `PUT /settings` | Carpeta de grabación, retención, no dormir; lista de discos externos. |

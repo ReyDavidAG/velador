@@ -18,6 +18,7 @@ public static class Endpoints
 		api.MapGet("/cameras/{id}/ptz", Position);
 		api.MapPost("/cameras/{id}/ptz", Move);
 		api.MapManagement();
+		api.MapTapo();
 		api.MapPost("/cameras/{id}/live", (string id, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, context, settings, media));
 	}

@@ -49,11 +49,15 @@ public sealed class EngineDatabase : IDisposable
 		}
 	}
 
+	public const long EventJoinMs = 10_000;
+
 	public void OpenEvent(string cameraId, EventKind kind, long nowMs)
 	{
 		lock (_lock)
 		{
 			if (Scalar("SELECT COUNT(*) FROM events WHERE camera_id = $c AND kind = $k AND end_ms IS NULL", ("$c", cameraId), ("$k", kind.ToCode())) > 0) return;
+			Run("UPDATE events SET end_ms = NULL WHERE id = (SELECT id FROM events WHERE camera_id = $c AND kind = $k AND end_ms >= $r ORDER BY start_ms DESC LIMIT 1)", ("$c", cameraId), ("$k", kind.ToCode()), ("$r", nowMs - EventJoinMs));
+			if (Scalar("SELECT changes()") > 0) return;
 			Run("INSERT INTO events (camera_id, start_ms, end_ms, kind) VALUES ($c, $s, NULL, $k)", ("$c", cameraId), ("$s", nowMs), ("$k", kind.ToCode()));
 		}
 	}

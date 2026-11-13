@@ -355,6 +355,21 @@ public class DiscoveryAndClipTests
 	}
 
 	[Fact]
+	public void Signals_a_few_seconds_apart_are_one_event()
+	{
+		using var db = new EngineDatabase(":memory:");
+		db.OpenEvent("entrada", EventKind.Motion, 1000);
+		db.CloseEvent("entrada", EventKind.Motion, 3000);
+		db.OpenEvent("entrada", EventKind.Motion, 8000);
+		db.CloseEvent("entrada", EventKind.Motion, 9000);
+		db.OpenEvent("entrada", EventKind.Motion, 40_000);
+
+		var events = db.EventsIn("entrada", new TimeRange(0, 100_000));
+		Assert.Equal(2, events.Count);
+		Assert.Equal((1000L, 9000L), (events[0].StartMs, events[0].EndMs!.Value));
+	}
+
+	[Fact]
 	public void The_last_event_is_the_most_recent_one()
 	{
 		using var db = new EngineDatabase(":memory:");

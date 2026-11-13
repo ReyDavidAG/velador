@@ -10,3 +10,4 @@ docs/local/
 node_modules/
 obj/
 tools/
+dist/

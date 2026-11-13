@@ -72,7 +72,7 @@ export const bindRound = (el, { r, win, onSeek, onZoom, onClip, getClip }) => {
 		hover.querySelector('.rt-peek-t').textContent = r.clock(t)
 		const label = hover.querySelector('.rt-peek-l')
 		label.className = `rt-peek-l ${gap ? 'gap' : ev ? ev.kind : t >= r.end ? 'gap' : ''}`
-		label.textContent = gap ? `${CAUSE[gap.cause].label} · ${span(gap.end - gap.start)}` : t >= r.end ? 'Todavía no pasa' : ev ? `${KIND[ev.kind].label} · ${ev.zone}` : 'Grabado'
+		label.textContent = gap ? `${CAUSE[gap.cause].label} · ${span(gap.end - gap.start)}` : t >= r.end ? 'Todavía no pasa' : ev ? (KIND[ev.kind]?.label ?? 'Suceso') : 'Grabado'
 		hover.classList.toggle('is-gap', Boolean(gap) || t >= r.end)
 	}
 	el.addEventListener('pointerdown', e => {

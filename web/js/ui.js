@@ -72,6 +72,7 @@ export const dateLabel = d => d.toLocaleDateString('es-MX', { day: 'numeric', mo
 export const KIND = {
 	person: { label: 'Persona', icon: 'person' },
 	motion: { label: 'Movimiento', icon: 'motion' },
+	tamper: { label: 'Cámara manipulada', icon: 'alert' },
 }
 export const CAUSE = {
 	sleep: { label: 'Equipo en reposo', icon: 'sleep' },

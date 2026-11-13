@@ -2,10 +2,18 @@ import { roundHtml, setCursor } from '../components/round_timeline.js'
 import { api } from '../services/api.js'
 import { watchLive } from '../services/live.js'
 import { loadRound, loadSummary, state } from '../store.js'
-import { CAUSE, esc, I, pct, span } from '../ui.js'
+import { CAUSE, esc, I, pct, span, toast } from '../ui.js'
 
 const GB = 1024 ** 3
-const LEGEND = `<span class="legend"><span><i class="sw span"></i>Grabado</span><span><i class="sw gapp"></i>Hueco</span></span>`
+const LEGEND = `<span class="legend"><span><i class="sw span"></i>Grabado</span><span><i class="sw gapp"></i>Hueco</span><span><i class="sw person"></i>Persona</span><span><i class="sw motion"></i>Movimiento</span></span>`
+const PAD = `<header class="card-head"><h2>Mover la cámara</h2></header>
+	<div class="ptz"><div class="pad">
+		<button type="button" data-ptz="0,1" class="u" title="Arriba">${I.up}<span class="sr-only">Arriba</span></button>
+		<button type="button" data-ptz="-1,0" class="l" title="Izquierda">${I.left}<span class="sr-only">Izquierda</span></button>
+		<span class="pad-c" aria-hidden="true"><i></i></span>
+		<button type="button" data-ptz="1,0" class="r" title="Derecha">${I.right}<span class="sr-only">Derecha</span></button>
+		<button type="button" data-ptz="0,-1" class="d" title="Abajo">${I.down}<span class="sr-only">Abajo</span></button>
+	</div><p class="muted-s">Cada toque gira un poco. También con las flechas del teclado.</p></div>`
 const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'] }
 
 const guardHtml = () => {
@@ -42,7 +50,7 @@ const html = () => `<div class="live-grid">
 			<div data-mini></div>
 		</section>
 	</div>
-	<aside class="rail"><section class="card" data-guard>${guardHtml()}</section></aside>
+	<aside class="rail"><section class="card" data-guard>${guardHtml()}</section><section class="card">${PAD}</section></aside>
 </div>`
 
 const mount = main => {
@@ -77,7 +85,27 @@ const mount = main => {
 	refresh()
 	const tick = setInterval(clock, 1000)
 	const poll = setInterval(refresh, 5000)
+	let moving = false
+	const move = async (x, y) => {
+		if (moving) return
+		moving = true
+		try {
+			await api.move(state.camera.id, x * 0.08, y * 0.08)
+		} catch {
+			toast('La cámara no respondió al movimiento')
+		}
+		moving = false
+	}
+	const onKey = e => {
+		const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]
+		if (!dir || e.target.closest('input, [role="radio"]')) return
+		e.preventDefault()
+		move(...dir)
+	}
+	document.addEventListener('keydown', onKey)
 	const onClick = e => {
+		const ptz = e.target.closest('[data-ptz]')
+		if (ptz) move(...ptz.dataset.ptz.split(',').map(Number))
 		if (e.target.closest('[data-mute]')) {
 			state.muted = !state.muted
 			video.muted = state.muted
@@ -98,6 +126,7 @@ const mount = main => {
 		clearInterval(tick)
 		clearInterval(poll)
 		stopLive()
+		document.removeEventListener('keydown', onKey)
 		main.removeEventListener('click', onClick)
 	}
 }

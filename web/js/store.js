@@ -33,7 +33,7 @@ export const toRound = (raw, i) => {
 		from: sec(raw.watchedFromMs),
 		spans: raw.spans.map(s => ({ start: sec(s.startMs), end: sec(s.endMs) })),
 		gaps: raw.gaps.map(g => ({ start: sec(g.startMs), end: sec(g.endMs), cause: g.cause })),
-		events: [],
+		events: raw.events.map(e => ({ id: e.id, t: sec(e.startMs), dur: Math.max(1, (e.endMs - e.startMs) / 1000), kind: e.kind })),
 		coverage: raw.coverage,
 		ms: t => raw.startMs + t * 1000,
 		clock: t => {

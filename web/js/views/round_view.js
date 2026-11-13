@@ -1,7 +1,7 @@
 import { bindRound, gapAt, roundHtml, setCursor } from '../components/round_timeline.js'
 import { api } from '../services/api.js'
 import { loadRound, state } from '../store.js'
-import { CAUSE, dateLabel, dayLabel, esc, I, pct, segment, span, toast, toggle } from '../ui.js'
+import { CAUSE, dateLabel, dayLabel, esc, I, KIND, pct, segment, span, toast, toggle } from '../ui.js'
 
 const DAYS = 7
 const CHUNK = 120
@@ -12,7 +12,7 @@ const dayBtn = (r, i) =>
 	`<button class="day ${i === state.day ? 'on' : ''}" type="button" data-day="${i}" aria-pressed="${i === state.day}" ${r ? '' : 'disabled'}>
 		<span class="day-name">${esc(dayLabel(r?.date ?? new Date(), i))}</span><span class="day-date mono">${r ? esc(dateLabel(r.date)) : '…'}</span>
 		<span class="day-bar">${(r?.spans ?? []).map(s => `<i style="left:${(s.start / r.len) * 100}%;width:${((s.end - s.start) / r.len) * 100}%"></i>`).join('')}</span>
-		<span class="day-meta"><b class="mono ${r?.gaps.length ? 'warn' : ''}">${r && r.end > r.from ? pct(r.coverage) : '—'}</b><span>${!r ? '' : r.end <= r.from ? 'sin guardia' : `${r.gaps.length} ${r.gaps.length === 1 ? 'hueco' : 'huecos'}`}</span></span>
+		<span class="day-meta"><b class="mono ${r?.gaps.length ? 'warn' : ''}">${r && r.end > r.from ? pct(r.coverage) : '—'}</b><span>${!r ? '' : r.end <= r.from ? 'sin guardia' : `${r.events.length} ${r.events.length === 1 ? 'suceso' : 'sucesos'}`}</span></span>
 	</button>`
 
 const sideHtml = r => `
@@ -20,7 +20,10 @@ const sideHtml = r => `
 	<div class="ev-list scroll">${
 		r.gaps
 			.map(g => `<button class="gap-row" type="button" data-seek="${g.start + 1}"><span class="ev-ico gap">${I[CAUSE[g.cause]?.icon ?? 'alert']}</span><span class="ev-main"><b>${esc(CAUSE[g.cause]?.label ?? 'Sin grabación')}</b><small>${span(g.end - g.start)} sin grabar</small></span><span class="mono ev-time">${r.clock(g.start).slice(0, 5)}</span></button>`)
-			.join('') || `<p class="empty-s">${r.spans.length ? 'Sin huecos desde que empezó la guardia.' : 'Este día Velador todavía no vigilaba.'}</p>`
+			.join('') +
+		r.events
+			.map(e => `<button class="ev-row" type="button" data-seek="${Math.max(0, e.t - 2)}"><span class="ev-ico ${e.kind}">${I[KIND[e.kind]?.icon ?? 'motion']}</span><span class="ev-main"><b>${esc(KIND[e.kind]?.label ?? 'Suceso')}</b><small>${span(e.dur)}</small></span><span class="mono ev-time">${r.clock(e.t).slice(0, 5)}</span></button>`)
+			.join('') || `<p class="empty-s">${r.spans.length ? 'Sin huecos ni sucesos desde que empezó la guardia.' : 'Este día Velador todavía no vigilaba.'}</p>`
 	}</div>`
 
 const html = () => `<div class="round">

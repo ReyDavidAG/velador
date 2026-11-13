@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Velador.Core/Velador.Core.csproj" />
+  <Project Path="Velador.Engine/Velador.Engine.csproj" />
+  <Project Path="Velador.Tests/Velador.Tests.csproj" />
+</Solution>

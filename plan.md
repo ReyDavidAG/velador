@@ -152,10 +152,11 @@ Hecha el 2026-11-12 (`docs/verification.md`): streams, códecs, peso, CPU, sesio
 
 Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`, `feature/engine-retention`.
 
-- [ ] Supervisor de MediaMTX: escribe su configuración (sólo `127.0.0.1`, MoQ y salidas apagadas, `%z` en el nombre de archivo, rutas sin guion bajo), lo readopta si ya corre, lo reinicia si muere.
-- [ ] Continuidad, capas 1 a 7, con pruebas del cálculo de huecos y de la vigía.
-- [ ] Índice SQLite alimentado por los avisos de segmento; reconstrucción al arrancar.
-- [ ] API con sesión: `summary`, `cameras`, `rounds/{date}`, `events`, `clips`, `settings`, `ptz`, `live`, `media`. Contrato en `docs/api.md`.
+- [x] Supervisor de MediaMTX: escribe su configuración (sólo `127.0.0.1`, MoQ y salidas apagadas, `%z` en el nombre de archivo, rutas sin guion bajo), lo readopta si ya corre, lo reinicia si muere.
+- [x] Continuidad: vigía, latido, clasificación de cortes y no dormir, con pruebas. Falta el aviso del sistema, la tapa y el cierre de sesión de la matriz, y detectar contraseña rechazada (hoy se ve como «cámara»).
+- [x] Huecos y estado en SQLite. Los tramos salen de la lista de MediaMTX, que ya funde segmentos contiguos: no hizo falta tabla de segmentos ni avisos de segmento.
+- [x] API con sesión: `summary`, `rounds/{date}`, `media`, `live`.
+- [ ] API: `cameras` (alta y edición), `events`, `clips`, `settings`, `ptz`. Contrato en `docs/api.md`.
 - [ ] Descubrimiento ONVIF, alta con IP a mano, errores de cuenta de cámara; la cámara se identifica por MAC para sobrevivir a un cambio de IP.
 - [ ] Miniaturas desde `stream2`.
 - [ ] Retención; nunca borra recortes ni el archivo en curso.

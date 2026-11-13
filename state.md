@@ -6,7 +6,7 @@
 
 - **Fase 0 · Propuesta: aprobada** (2026-11-12).
 - **Fase 1 · Verificación: hecha**, salvo lo que necesita la ventana de Tauri y una corrida larga.
-- **Fase 2 · Motor: sin empezar.** Requiere el SDK de .NET 10 (en esta Mac hay 8).
+- **Fase 2 · Motor: en curso.** Graba, vigila y sirve la ronda y el video; faltan retención, alta de cámaras, PTZ, sucesos y recortes.
 
 ## Hecho
 
@@ -20,8 +20,18 @@
 
 ## Siguiente
 
-1. Instalar el SDK de .NET 10 y abrir `feature/engine-record`: solución, `Velador.Core`, `Velador.Engine` y supervisor de MediaMTX.
-2. Pendientes de la Fase 1 (lista en `plan.md`).
+1. `feature/engine-retention`: borrado por días y por disco.
+2. `feature/engine-cameras`: alta y edición con llavero, descubrimiento ONVIF, PTZ y eventos de la cámara.
+3. Recortes y miniaturas con FFmpeg.
+4. Pendientes de la Fase 1 y la matriz de continuidad (lista en `plan.md`).
+
+## Motor (2026-11-12)
+
+- `Velador.Core` (puro), `Velador.Engine` y `Velador.Tests` en .NET 10; 52 pruebas en verde. CI en macOS y Windows.
+- Probado contra la cámara real: arranca MediaMTX con su configuración, graba los dos streams, `summary` y la ronda del día responden, 10 s de video por la API en 16 ms, el vivo se reenvía por WHEP.
+- Cortes provocados: parada limpia y rearranque, `kill -9` a MediaMTX (se levanta solo en menos de 1 s), `kill -9` al motor con MediaMTX vivo (no deja hueco: lo readopta) y MediaMTX congelado (hueco `engine`, reinicio solo a los 15 s).
+- Error encontrado y corregido en esa prueba: sin tiempo límite, un MediaMTX congelado dejaba colgado al motor.
+- Sin probar: todo lo de Windows (Credential Manager y petición de energía están escritos, no ejecutados), el llavero de macOS con una contraseña real, reposo real del equipo y corte del WiFi de la cámara.
 
 ## Repositorio
 

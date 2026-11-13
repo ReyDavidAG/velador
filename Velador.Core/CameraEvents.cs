@@ -11,6 +11,8 @@ public enum EventKind
 
 public sealed record CameraSignal(EventKind Kind, bool Active);
 
+public sealed record Clip(long Id, string CameraId, long StartMs, long EndMs, string Title, string File, long Bytes, long CreatedMs);
+
 public sealed record CameraEvent(long Id, string CameraId, long StartMs, long? EndMs, EventKind Kind);
 
 public static class OnvifEvents

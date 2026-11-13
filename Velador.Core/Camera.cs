@@ -1,6 +1,6 @@
 namespace Velador.Core;
 
-public sealed record Camera(string Id, string Name, string Host, string User, int RtspPort = 554, string MainPath = "stream1", string MinorPath = "stream2", int OnvifPort = 2020)
+public sealed record Camera(string Id, string Name, string Host, string User, int RtspPort = 554, string MainPath = "stream1", string MinorPath = "stream2", int OnvifPort = 2020, int Rotation = 0)
 {
 	public const string MainStream = "main";
 	public const string MinorStream = "minor";

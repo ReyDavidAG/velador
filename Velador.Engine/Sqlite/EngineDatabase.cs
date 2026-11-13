@@ -18,6 +18,7 @@ public sealed class EngineDatabase : IDisposable
 		Run("CREATE TABLE IF NOT EXISTS engine_state (key TEXT PRIMARY KEY, value INTEGER NOT NULL)");
 		Run("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, camera_id TEXT NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NULL, kind TEXT NOT NULL)");
 		Run("CREATE INDEX IF NOT EXISTS events_camera_start ON events (camera_id, start_ms)");
+		Run("CREATE TABLE IF NOT EXISTS clips (id INTEGER PRIMARY KEY, camera_id TEXT NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, title TEXT NOT NULL, file TEXT NOT NULL, bytes INTEGER NOT NULL, created_ms INTEGER NOT NULL)");
 	}
 
 	public void OpenGap(string cameraId, RecordedGap gap)
@@ -83,6 +84,42 @@ public sealed class EngineDatabase : IDisposable
 				events.Add(new CameraEvent(reader.GetInt64(0), cameraId, reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetInt64(2), Enum.Parse<EventKind>(reader.GetString(3), true)));
 			return events;
 		}
+	}
+
+	public CameraEvent? LastEvent(string cameraId)
+	{
+		lock (_lock)
+		{
+			using var command = Command("SELECT id, start_ms, end_ms, kind FROM events WHERE camera_id = $c ORDER BY start_ms DESC LIMIT 1", ("$c", cameraId));
+			using var reader = command.ExecuteReader();
+			return reader.Read() ? new CameraEvent(reader.GetInt64(0), cameraId, reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetInt64(2), Enum.Parse<EventKind>(reader.GetString(3), true)) : null;
+		}
+	}
+
+	public Clip AddClip(string cameraId, TimeRange range, string title, string file, long bytes, long createdMs)
+	{
+		lock (_lock)
+		{
+			Run("INSERT INTO clips (camera_id, start_ms, end_ms, title, file, bytes, created_ms) VALUES ($c, $s, $e, $t, $f, $b, $n)", ("$c", cameraId), ("$s", range.StartMs), ("$e", range.EndMs), ("$t", title), ("$f", file), ("$b", bytes), ("$n", createdMs));
+			return new Clip(Scalar("SELECT last_insert_rowid()"), cameraId, range.StartMs, range.EndMs, title, file, bytes, createdMs);
+		}
+	}
+
+	public IReadOnlyList<Clip> Clips()
+	{
+		lock (_lock)
+		{
+			using var command = Command("SELECT id, camera_id, start_ms, end_ms, title, file, bytes, created_ms FROM clips ORDER BY created_ms DESC");
+			using var reader = command.ExecuteReader();
+			var clips = new List<Clip>();
+			while (reader.Read()) clips.Add(new Clip(reader.GetInt64(0), reader.GetString(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetString(4), reader.GetString(5), reader.GetInt64(6), reader.GetInt64(7)));
+			return clips;
+		}
+	}
+
+	public void RemoveClip(long id)
+	{
+		lock (_lock) Run("DELETE FROM clips WHERE id = $i", ("$i", id));
 	}
 
 	public long? State(string key)

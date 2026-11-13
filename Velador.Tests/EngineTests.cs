@@ -476,3 +476,89 @@ public class KnownNetworkTests
 		Assert.Equal(name, KnownNetworks.SsidFrom(output.Replace("\\n", "\n")));
 	}
 }
+
+public class TapoCryptoTests
+{
+	const string Cnonce = "0123456789ABCDEF";
+	const string Nonce = "FEDCBA9876543210";
+	const string Confirm = "42833ABE8AB37DFF2C7A297D18D6E8538C9AF702CF3E761EF76388B3A2D26788FEDCBA98765432100123456789ABCDEF";
+
+	[Fact]
+	public void The_camera_is_verified_and_the_login_digest_matches_the_reference()
+	{
+		var hashed = TapoCrypto.HashThatMatches("secreto-1", Cnonce, Nonce, Confirm);
+
+		Assert.Equal(TapoCrypto.Sha256Upper("secreto-1"), hashed);
+		Assert.Null(TapoCrypto.HashThatMatches("otra", Cnonce, Nonce, Confirm));
+		Assert.Equal("F84124ED2E6DC2EEE9B6B8ADD06D7FB9486E898F796F39133005A8F8AB8DC4BA0123456789ABCDEFFEDCBA9876543210", TapoCrypto.Digest(hashed!, Cnonce, Nonce));
+	}
+
+	[Fact]
+	public void Keys_encryption_and_the_request_tag_match_the_reference()
+	{
+		var keys = TapoCrypto.Keys(TapoCrypto.Sha256Upper("secreto-1"), Cnonce, Nonce);
+		const string inner = """{"method":"multipleRequest","params":{"requests":[{"method":"getLedStatus","params":{"led":{"name":["config"]}}}]}}""";
+		const string encrypted = "SN9FZ2xMkfLk/F9K6PZFPXRIm4Ofur0e/zpJof1jEFgs5IIBhOeG9vIaV0ZzD1WJPhtHay/2Fzmze9NYIJHvhBtsFYgku0IF8ecpLUMoW2xIGhOUopKhLGksBKOY4Pk/s0I/+fOKC0NToh+W3mlLqI5J5+ypm1m6r70hkGkR4Pg=";
+
+		Assert.Equal("31940d639cbcdcc2cbfcec7ff67c0007", Convert.ToHexStringLower(keys.Lsk));
+		Assert.Equal("0e96843226bbad042e06ce4aa0eec508", Convert.ToHexStringLower(keys.Ivb));
+		Assert.Equal(encrypted, TapoCrypto.Encrypt(keys, inner));
+		Assert.Equal(inner, TapoCrypto.Decrypt(keys, encrypted));
+		Assert.Equal("D8028E1F66A099844E85D6696F470D3E741BB2F01D5781239C5C00A04805D46C", TapoCrypto.Tag(keys, Cnonce, $"{{\"method\":\"securePassthrough\",\"params\":{{\"request\":\"{encrypted}\"}}}}", 41));
+	}
+
+	[Fact]
+	public void The_wifi_password_is_encrypted_for_the_camera_key()
+	{
+		using var rsa = System.Security.Cryptography.RSA.Create(1024);
+		var sealedText = TapoCrypto.EncryptForCamera(rsa.ExportSubjectPublicKeyInfoPem(), "clave del wifi");
+
+		Assert.Equal("clave del wifi", System.Text.Encoding.UTF8.GetString(rsa.Decrypt(Convert.FromBase64String(sealedText), System.Security.Cryptography.RSAEncryptionPadding.Pkcs1)));
+		Assert.NotEqual(sealedText, TapoCrypto.EncryptForCamera(Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo()), "clave del wifi"));
+	}
+}
+
+public class TpapTests
+{
+	[Fact]
+	public void The_password_shadow_matches_the_reference()
+	{
+		Assert.Equal("$5$rounds=5000$abcdefgh12345678$nd0TFZCsEjy9nzEKy2BGaQrxq2wFQ/gd5VrGJLe8PO0", Sha256Crypt.Hash("secreto-1", "$5$rounds=5000$abcdefgh12345678XYZ$"));
+		Assert.Equal("$5$saltsalt$2gF4ggipMj2Ym5TsNLNsHd2RJVrEaO1I2an1ZrzBmJ9", Sha256Crypt.Hash("secreto-1", "$5$saltsalt"));
+	}
+
+	[Fact]
+	public void The_key_exchange_matches_the_reference_end_to_end()
+	{
+		var client = new Spake2PlusClient(
+			Convert.FromBase64String("AAECAwQFBgcICQoLDA0ODw=="),
+			1000,
+			Convert.FromBase64String("BFFZC3pRUUDS14TIVghmj9/vjIL9H1vlJCFVSg3D0DPt4MF9qJBKcn2K4b82v4p5Jg0BLwDU2AiI0dC7RP2hbaQ="),
+			Convert.FromBase64String("ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="),
+			Convert.FromBase64String("ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoM="),
+			"$5$rounds=5000$abcdefgh12345678$nd0TFZCsEjy9nzEKy2BGaQrxq2wFQ/gd5VrGJLe8PO0",
+			P256.Unsigned(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray()));
+
+		Assert.Equal("BPNetyp/W+ocCCVDIRKz98do2CVZlkpJp0da1b8VZZHuaD8SM7oqO+5+Rm8a8pEYSDQyNrrE6H1y/v3vTyYNm5o=", Convert.ToBase64String(client.UserShare));
+		Assert.Equal("25ca1dcdc6f4f4d45ed0fcf519c65afdfc4d3db756bd8a961edc4928675bb155", Convert.ToHexStringLower(client.UserConfirm));
+		Assert.True(client.DeviceConfirms(Convert.FromHexString("ec3f8e4c9b82dffd50902688c2db19f7b8732ec9dce963287b478f0329ec70fe")));
+		Assert.False(client.DeviceConfirms(new byte[32]));
+		var (key, nonce) = client.Session();
+		Assert.Equal("b3d9f8bf8c717e810fa62c9e63eb9f74", Convert.ToHexStringLower(key));
+		Assert.Equal("19f60eb8f394a2828e7d817f", Convert.ToHexStringLower(nonce));
+	}
+
+	[Fact]
+	public void The_sealed_channel_matches_the_reference_and_rejects_tampering()
+	{
+		var key = Convert.FromHexString("b3d9f8bf8c717e810fa62c9e63eb9f74");
+		var nonce = Convert.FromHexString("19f60eb8f394a282048b1c8c");
+		var plain = System.Text.Encoding.UTF8.GetBytes("""{"method":"multipleRequest","params":{"requests":[]}}""");
+		var expected = Convert.FromHexString("4bdb3c6a9b4fe962f5bb2714c795c48cadcb3ea88a8698650d9bb15a769d2b479cbe31b2897dd6977ef320928f4a650f8f4e1c70f729595bc1a44d3d35d0a925c6eb6ef212");
+
+		Assert.Equal(expected, AesCcm128.Seal(key, nonce, plain));
+		Assert.Equal(plain, AesCcm128.Open(key, nonce, expected));
+		expected[5] ^= 1;
+		Assert.Null(AesCcm128.Open(key, nonce, expected));
+	}
+}

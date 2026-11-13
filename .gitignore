@@ -9,3 +9,4 @@ desktop/src-tauri/target/
 *.db-*
 .env
 .env.*
+tools/

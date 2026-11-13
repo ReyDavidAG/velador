@@ -48,6 +48,12 @@
 - Sin comprobar a ojo: la ventana real (no hay permiso de captura de pantalla en esta sesión), los avisos del sistema y el arranque tras reiniciar la Mac.
 - Con el disco actual (75 % ocupado y límite en 80 %) caben alrededor de día y medio de grabación antes de que la retención empiece a borrar.
 
+## PTZ y sucesos (2026-11-12)
+
+- Cliente ONVIF propio en el motor (WS-Security probado con el vector de ejemplo del estándar). Mover la cámara por la API funciona con la cámara real: giró y regresó a la posición exacta.
+- Sucesos: suscripción PullPoint con renovación, guardados en SQLite y entregados en la ronda. El lector de mensajes sigue el formato del estándar (`IsMotion`, `IsPeople`, `IsTamper`), **no** un mensaje capturado de esta cámara: en dos intentos no emitió ninguno. Hay que confirmarlo con movimiento real frente a la cámara.
+- 67 pruebas en verde.
+
 ## Repositorio
 
 `github.com/ReyDavidAG/velador`, público, con `main`, `develop` y ramas `feature/*`. Commits de una línea con el correo de Bitácora.

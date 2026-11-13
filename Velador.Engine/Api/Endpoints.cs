@@ -2,6 +2,7 @@ using System.Globalization;
 using Velador.Core;
 using Velador.Engine.Continuity;
 using Velador.Engine.MediaMtx;
+using Velador.Engine.Onvif;
 using Velador.Engine.Sqlite;
 
 namespace Velador.Engine.Api;
@@ -14,6 +15,8 @@ public static class Endpoints
 		api.MapGet("/summary", Summary);
 		api.MapGet("/cameras/{id}/rounds/{date}", RoundOf);
 		api.MapGet("/cameras/{id}/media", Media);
+		api.MapGet("/cameras/{id}/ptz", Position);
+		api.MapPost("/cameras/{id}/ptz", Move);
 		api.MapPost("/cameras/{id}/live", (string id, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, context, settings, media));
 	}
@@ -66,8 +69,38 @@ public static class Endpoints
 			coverage = Math.Round(round.Coverage, 3),
 			spans = round.Spans.Select(s => new { startMs = s.StartMs, endMs = s.EndMs }),
 			gaps = round.Gaps.Select(g => new { startMs = g.Range.StartMs, endMs = g.Range.EndMs, cause = g.Cause.ToCode() }),
-			events = Array.Empty<object>(),
+			events = database.EventsIn(id, window).Select(e => new { e.Id, startMs = e.StartMs, endMs = e.EndMs ?? now, kind = e.Kind.ToCode() }),
 		});
+	}
+
+	public sealed record MoveRequest(double X, double Y);
+
+	static async Task<IResult> Position(string id, CameraLinks links, CancellationToken ct)
+	{
+		if (links.For(id) is not { } onvif) return Results.NotFound();
+		try
+		{
+			return await onvif.PositionAsync(ct) is { } position ? Results.Ok(new { x = position.X, y = position.Y }) : Results.StatusCode(StatusCodes.Status502BadGateway);
+		}
+		catch (Exception e) when (e is HttpRequestException or OperationCanceledException or System.Xml.XmlException)
+		{
+			return Results.StatusCode(StatusCodes.Status502BadGateway);
+		}
+	}
+
+	static async Task<IResult> Move(string id, MoveRequest move, CameraLinks links, CancellationToken ct)
+	{
+		if (links.For(id) is not { } onvif) return Results.NotFound();
+		if (!double.IsFinite(move.X) || !double.IsFinite(move.Y)) return Results.BadRequest();
+		try
+		{
+			await onvif.MoveAsync(move.X, move.Y, ct);
+			return Results.NoContent();
+		}
+		catch (Exception e) when (e is HttpRequestException or OperationCanceledException or System.Xml.XmlException)
+		{
+			return Results.StatusCode(StatusCodes.Status502BadGateway);
+		}
 	}
 
 	static async Task<IResult> Media(string id, long startMs, long durationMs, string? stream, EngineSettings settings, MediaCache cache, IHostApplicationLifetime lifetime, CancellationToken ct)

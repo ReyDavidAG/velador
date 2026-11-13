@@ -16,6 +16,8 @@ public sealed class EngineDatabase : IDisposable
 		Run("CREATE TABLE IF NOT EXISTS gaps (id INTEGER PRIMARY KEY, camera_id TEXT NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NULL, cause TEXT NOT NULL)");
 		Run("CREATE INDEX IF NOT EXISTS gaps_camera_start ON gaps (camera_id, start_ms)");
 		Run("CREATE TABLE IF NOT EXISTS engine_state (key TEXT PRIMARY KEY, value INTEGER NOT NULL)");
+		Run("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, camera_id TEXT NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NULL, kind TEXT NOT NULL)");
+		Run("CREATE INDEX IF NOT EXISTS events_camera_start ON events (camera_id, start_ms)");
 	}
 
 	public void OpenGap(string cameraId, RecordedGap gap)
@@ -43,6 +45,43 @@ public sealed class EngineDatabase : IDisposable
 		{
 			var value = Scalar("SELECT COALESCE(MAX(end_ms), -1) FROM gaps WHERE camera_id = $c", ("$c", cameraId));
 			return value < 0 ? null : value;
+		}
+	}
+
+	public void OpenEvent(string cameraId, EventKind kind, long nowMs)
+	{
+		lock (_lock)
+		{
+			if (Scalar("SELECT COUNT(*) FROM events WHERE camera_id = $c AND kind = $k AND end_ms IS NULL", ("$c", cameraId), ("$k", kind.ToCode())) > 0) return;
+			Run("INSERT INTO events (camera_id, start_ms, end_ms, kind) VALUES ($c, $s, NULL, $k)", ("$c", cameraId), ("$s", nowMs), ("$k", kind.ToCode()));
+		}
+	}
+
+	public void CloseEvent(string cameraId, EventKind kind, long nowMs)
+	{
+		lock (_lock) Run("UPDATE events SET end_ms = MAX($e, start_ms + 1000) WHERE camera_id = $c AND kind = $k AND end_ms IS NULL", ("$c", cameraId), ("$k", kind.ToCode()), ("$e", nowMs));
+	}
+
+	public void CloseEvents(string cameraId, long nowMs)
+	{
+		lock (_lock) Run("UPDATE events SET end_ms = MAX($e, start_ms + 1000) WHERE camera_id = $c AND end_ms IS NULL", ("$c", cameraId), ("$e", nowMs));
+	}
+
+	public void CloseEventsOlderThan(string cameraId, long startedBeforeMs, long nowMs)
+	{
+		lock (_lock) Run("UPDATE events SET end_ms = $e WHERE camera_id = $c AND end_ms IS NULL AND start_ms < $b", ("$c", cameraId), ("$e", nowMs), ("$b", startedBeforeMs));
+	}
+
+	public IReadOnlyList<CameraEvent> EventsIn(string cameraId, TimeRange window, int limit = 2000)
+	{
+		lock (_lock)
+		{
+			using var command = Command("SELECT id, start_ms, end_ms, kind FROM events WHERE camera_id = $c AND start_ms < $e AND (end_ms IS NULL OR end_ms > $s) ORDER BY start_ms LIMIT $l", ("$c", cameraId), ("$s", window.StartMs), ("$e", window.EndMs), ("$l", limit));
+			using var reader = command.ExecuteReader();
+			var events = new List<CameraEvent>();
+			while (reader.Read())
+				events.Add(new CameraEvent(reader.GetInt64(0), cameraId, reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetInt64(2), Enum.Parse<EventKind>(reader.GetString(3), true)));
+			return events;
 		}
 	}
 

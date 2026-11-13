@@ -3,6 +3,7 @@ using Velador.Engine.Api;
 using Velador.Engine.Cli;
 using Velador.Engine.Continuity;
 using Velador.Engine.MediaMtx;
+using Velador.Engine.Onvif;
 using Velador.Engine.Power;
 using Velador.Engine.Secrets;
 using Velador.Engine.Sqlite;
@@ -36,6 +37,8 @@ builder.Services.AddHostedService(s => s.GetRequiredService<MediaSupervisor>());
 builder.Services.AddHostedService(s => s.GetRequiredService<ContinuityService>());
 builder.Services.AddSingleton<IRecordingStore>(new RecordingStore(paths.Recordings(settings)));
 builder.Services.AddHostedService<RetentionService>();
+builder.Services.AddSingleton<CameraLinks>();
+builder.Services.AddHostedService<EventService>();
 
 var app = builder.Build();
 app.UseSession(session);

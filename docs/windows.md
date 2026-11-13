@@ -36,7 +36,9 @@ Antes de probar el seguimiento: en la app Tapo apaga el **seguimiento de movimie
 6. **Ir y regresar:** con «Seguir personas», camina a un lado hasta salir y regresa al otro. Arriba debe decir «Buscando hacia donde se fue» y, si no te encuentra en 8 s, «Regresando a la posición de inicio». Mueve la cámara a mano a otro lugar: esa será la nueva posición de inicio.
 7. **Caras:** en Personas, la portada de cada quien lleva su cara en la esquina cuando se le vio de frente.
 8. **Personas:** al otro día, la vista Personas debe mostrar a cada quien agrupado con sus horas; un clic en la foto lleva a ese momento en la Ronda.
-9. **Pantalla completa:** el control de movimiento, la pausa y «Seguir personas» también están ahí.
+9. **Zoom:** en vivo, rueda del ratón sobre la imagen (acerca hacia donde apuntas), arrastra para moverte, y «1×» regresa. Igual en la Ronda, que ahora también tiene pantalla completa.
+10. **Calidad:** el botón «1080p · 15 cps» en la barra del video abre «Alta» o «Ligera»; abajo dice lo que llega en ese momento.
+11. **Pantalla completa:** el control de movimiento, la pausa y «Seguir personas» también están ahí.
 
 Cifras medidas en esta PC: detección en la tarjeta gráfica (DirectML), motor 11 % y FFmpeg 16 % de un núcleo con alguien a la vista; el video para la detección llega con 1.56 s de retraso.
 

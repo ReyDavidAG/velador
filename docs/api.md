@@ -8,7 +8,7 @@ Todo bajo `http://127.0.0.1:8352/api`, con sesión (cookie `velador_session` o c
 | `POST /cameras/{id}/recording` `{paused, minutes?}` | Pausa la grabación (de 1 minuto a 24 horas, o hasta reanudar) o la reanuda. El vivo sigue; queda un hueco `paused`. |
 | `GET /cameras/{id}/rounds/{AAAA-MM-DD}?tz=` | La ronda del día local: `spans`, `gaps` (con causa), `events`, `coverage`, `watchedFromMs`. |
 | `GET /cameras/{id}/media?startMs&durationMs&stream=main\|minor` | Video grabado por rango, con soporte de rangos HTTP. Hasta 10 minutos por petición. |
-| `POST /cameras/{id}/live` · `PATCH/DELETE /cameras/{id}/live/{sesión}` | Señalización WHEP del vivo, reenviada a MediaMTX. |
+| `POST /cameras/{id}/live?stream=main\|minor` · `PATCH/DELETE /cameras/{id}/live/{sesión}?stream=` | Señalización WHEP del vivo, reenviada a MediaMTX; `minor` es el stream ligero (720p). |
 | `GET /cameras/{id}/ptz` · `POST /cameras/{id}/ptz` `{x,y}` | Posición y giro relativo (−1 a 1; `x` a la derecha y `y` hacia arriba de la imagen tal como se ve, una vez calibrada). Suspende el seguimiento 10 s. |
 | `GET /cameras/{id}/vision` | Detección de personas: estado, `device` (`gpu`/`cpu`), cuadros por segundo, recuadros (`tracks`, en fracciones de la imagen), objetivo, si sigue o busca (`coasting`) y la calibración. |
 | `PUT /cameras/{id}/vision` `{follow}` | Enciende o apaga «Seguir personas». La primera vez calibra antes (unos 30 s). |

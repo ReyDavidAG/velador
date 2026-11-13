@@ -12,6 +12,7 @@ public sealed class ContinuityService(
 	EngineDatabase database,
 	MediaMtxClient media,
 	MediaSupervisor supervisor,
+	RecordingControl recording,
 	IReachability reachability,
 	IPowerGuard power,
 	TimeProvider time,
@@ -22,6 +23,7 @@ public sealed class ContinuityService(
 
 	readonly Dictionary<string, Watchdog> _dogs = [];
 	readonly Dictionary<string, bool> _online = [];
+	readonly HashSet<string> _paused = [];
 	long _lastBeatMs;
 
 	long Now => time.GetUtcNow().ToUnixTimeMilliseconds();
@@ -107,11 +109,16 @@ public sealed class ContinuityService(
 			var online = path?.Online ?? false;
 			_online[camera.Id] = online;
 			if (online && path!.InboundBytes > 0 && database.State(WatchedSince(camera.Id)) is null) database.SetState(WatchedSince(camera.Id), Now);
+			var paused = recording.IsPaused(camera.Id);
+			if (!paused && _paused.Remove(camera.Id)) _dogs.Remove(camera.Id);
+			if (paused) _paused.Add(camera.Id);
 			if (!_dogs.TryGetValue(camera.Id, out var dog)) dog = _dogs[camera.Id] = new Watchdog();
 			var stalled = dog.InGap || !online;
 			var cameraUp = !stalled || await reachability.CameraAsync(camera.Host, camera.RtspPort, ct);
 			var gatewayUp = cameraUp || await reachability.GatewayAsync(ct);
 			var verdict = dog.Observe(new WatchdogSample(Now, paths is not null, online, path?.InboundBytes ?? 0, cameraUp, gatewayUp));
+			restart |= verdict.RestartMedia;
+			if (paused) continue;
 			if (verdict.Opened is { } opened)
 			{
 				database.OpenGap(camera.Id, opened);
@@ -126,7 +133,6 @@ public sealed class ContinuityService(
 			{
 				database.CloseGap(camera.Id, Now);
 			}
-			restart |= verdict.RestartMedia;
 		}
 		if (restart) supervisor.Restart();
 	}

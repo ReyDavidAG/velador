@@ -68,6 +68,23 @@ public sealed class MediaMtxClient(HttpClient http, MediaPorts ports)
 			HttpCompletionOption.ResponseHeadersRead,
 			ct);
 
+	public async Task<bool> RecordAsync(string path, bool record, CancellationToken ct)
+	{
+		using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		limit.CancelAfter(TimeSpan.FromSeconds(3));
+		try
+		{
+			using var content = new StringContent(record ? "{\"record\":true}" : "{\"record\":false}", System.Text.Encoding.UTF8, "application/json");
+			using var response = await http.PatchAsync($"{Api}/v3/config/paths/patch/{Uri.EscapeDataString(path)}", content, limit.Token);
+			return response.IsSuccessStatusCode;
+		}
+		catch (Exception e) when (e is HttpRequestException or OperationCanceledException)
+		{
+			ct.ThrowIfCancellationRequested();
+			return false;
+		}
+	}
+
 	public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => http.SendAsync(request, ct);
 
 	static string Stamp(long ms) => Uri.EscapeDataString(DateTimeOffset.FromUnixTimeMilliseconds(ms).ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture));

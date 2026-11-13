@@ -12,6 +12,7 @@ public sealed class EngineSettings
 	public bool KeepAwake { get; set; } = true;
 	public List<Camera> Cameras { get; set; } = [];
 	public Dictionary<string, List<KnownNetwork>> Networks { get; set; } = [];
+	public Dictionary<string, long> Paused { get; set; } = [];
 
 	[System.Text.Json.Serialization.JsonIgnore]
 	public int Revision { get; set; }

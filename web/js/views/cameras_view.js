@@ -3,7 +3,7 @@ import { loadSummary, state } from '../store.js'
 import { confirmOnce, esc, I, segment, toast, toggle } from '../ui.js'
 import { bindCameraForm, cameraFormHtml } from './camera_form.js'
 
-const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'] }
+const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'], paused: ['', 'En pausa'] }
 
 const card = (c, live) => {
 	const [cls, label] = STATE[live?.state] ?? ['', 'Sin datos']

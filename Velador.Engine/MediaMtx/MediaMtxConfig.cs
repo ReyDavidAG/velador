@@ -7,7 +7,7 @@ public static class MediaMtxConfig
 {
 	public const string PlaceholderSource = "rtsp://127.0.0.1:1/none";
 
-	public static string Build(MediaPorts ports, string recordingsDir, IEnumerable<Camera> cameras)
+	public static string Build(MediaPorts ports, string recordingsDir, IEnumerable<Camera> cameras, IReadOnlySet<string>? paused = null)
 	{
 		var dir = recordingsDir.Replace('\\', '/').Replace("'", "''");
 		var yaml = new StringBuilder();
@@ -40,6 +40,7 @@ public static class MediaMtxConfig
 			{
 				Line(yaml, $"  {camera.MediaPath(stream)}:");
 				Line(yaml, $"    source: {PlaceholderSource}");
+				if (paused?.Contains(camera.Id) == true) Line(yaml, "    record: no");
 			}
 		return yaml.ToString();
 	}

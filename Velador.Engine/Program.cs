@@ -33,7 +33,9 @@ builder.Services.AddSingleton(new HttpClient(new SocketsHttpHandler { UseProxy =
 builder.Services.AddSingleton<MediaMtxClient>();
 builder.Services.AddSingleton<MediaCache>();
 builder.Services.AddSingleton<MediaSupervisor>();
+builder.Services.AddSingleton<RecordingControl>();
 builder.Services.AddSingleton<ContinuityService>();
+builder.Services.AddHostedService(s => s.GetRequiredService<RecordingControl>());
 builder.Services.AddHostedService(s => s.GetRequiredService<MediaSupervisor>());
 builder.Services.AddHostedService(s => s.GetRequiredService<ContinuityService>());
 var storage = new Storage(settings, EnginePaths.DefaultRecordings, TimeProvider.System);

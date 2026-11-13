@@ -16,6 +16,7 @@ export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 export const api = {
 	summary: () => send('GET', '/summary'),
 	round: (cameraId, date) => send('GET', `/cameras/${cameraId}/rounds/${date}?tz=${encodeURIComponent(zone)}`),
+	recording: (cameraId, paused, minutes) => send('POST', `/cameras/${cameraId}/recording`, { paused, minutes }),
 	move: (cameraId, x, y) => send('POST', `/cameras/${cameraId}/ptz`, { x, y }),
 	mediaUrl: (cameraId, startMs, durationMs, stream = 'main') => `/api/cameras/${cameraId}/media?startMs=${Math.round(startMs)}&durationMs=${Math.round(durationMs)}&stream=${stream}`,
 	settings: () => send('GET', '/settings'),

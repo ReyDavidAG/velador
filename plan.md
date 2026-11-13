@@ -13,16 +13,16 @@ Cerradas el 2026-11-12 con el usuario.
 | 3 | Stack | Tauri 2 (Rust) + motor .NET. Front sin React: HTML, CSS y módulos ES. |
 | 4 | Repo | Público, MIT, sin datos de la cámara. |
 
-Propuestas por cerrar al aprobar (mi recomendación primero). Pasaron por tres revisiones (diseño, arquitectura, continuidad) y por pruebas con la cámara real (`docs/verification.md`).
+Aprobadas por el usuario el 2026-11-12 junto con la propuesta. Pasaron por tres revisiones (diseño, arquitectura, continuidad) y por pruebas con la cámara real (`docs/verification.md`).
 
 | # | Tema | Recomendación | Por qué |
 |---|---|---|---|
-| 5 | Pieza de video | **MediaMTX** (MIT) como único servidor de medios, supervisado por el motor y escondido detrás de él. FFmpeg (build LGPL) para el audio, recortes y miniaturas. | De una conexión a la cámara salen grabación, vivo y reproducción por rango. Graba fMP4 en partes de 1 s. Ni FFmpeg solo (sin vivo ni reproducción por rango) ni go2rtc (sin grabador) lo igualan. |
-| 6 | Audio | La cámara manda G.711. En vivo va directo por WebRTC. En disco se guarda en **AAC** (medido: 0.5 % de un núcleo); el video nunca se toca. | El MP4 no admite G.711 (probado con FFmpeg) y los navegadores no lo reproducen en `<video>`. La ruta que alimenta el vivo conserva G.711 porque WebRTC no lleva AAC. |
+| 5 | Pieza de video | **MediaMTX** (MIT) como único servidor de medios, supervisado por el motor y escondido detrás de él. FFmpeg (build LGPL) para recortes y miniaturas. | Medido con la cámara: 0.6 % de un núcleo y 56 MB grabando los dos streams; 30 s de video por rango en 40 ms; al matarlo se perdieron 0.77 s. Ni FFmpeg solo ni go2rtc lo igualan. |
+| 6 | Audio | La cámara manda G.711. En vivo va directo por WebRTC. En disco MediaMTX lo guarda como PCM sin comprimir, que Chrome reproduce. Los recortes salen con audio **AAC**. | Medido. Falta confirmar el PCM en WKWebView; si no suena, el motor lo convierte a AAC al servirlo (0.5 % de un núcleo). |
 | 7 | Vivo | WebRTC (WHEP), con la señalización reenviada por el motor. | Menos de 1 s de retraso sin recodificar. |
 | 8 | .NET | .NET 10 (LTS hasta nov-2028), autocontenido, un solo archivo. En esta Mac hay SDK 8, que terminó soporte el 2026-11-10. | Un ejecutable por plataforma, sin instalar runtime. |
 | 9 | Índice | SQLite en WAL (`velador.db`), tiempos en epoch ms UTC. | Abrir un día es una consulta, no listar archivos. |
-| 10 | Sucesos | Primero los eventos de la propia cámara por ONVIF (movimiento, persona, manipulación): cero CPU. Detección propia sólo si no bastan. | La cámara los anuncia y acepta la suscripción (verificado); falta ver que lleguen con movimiento real. |
+| 10 | Sucesos | Los eventos de la propia cámara por ONVIF (movimiento, persona, manipulación): cero CPU. Detección propia sólo si no bastan. | Verificado: el evento de movimiento llegó al mover la imagen. |
 | 11 | Móvil | Sin app aparte: el mismo front por navegador a través de Tailscale. | El motor ya lo sirve por un solo puerto. |
 | 12 | Cero huecos | Mover el motor a un equipo siempre prendido (la PC vieja) y dejar esta máquina como visor. Es el mismo código. El relevo en paralelo queda descartado por ahora. | Es lo único que quita los huecos por reposo, y no necesita fusionar grabaciones. |
 
@@ -48,7 +48,8 @@ Velador.app / Velador.exe (Tauri 2 · Rust)        Motor (Velador.Engine · .NET
 
 ### Seguridad
 
-- MediaMTX escucha sólo en `127.0.0.1`; por omisión escucha en todas las interfaces y acepta cualquier origen, así que su configuración la escribe el motor y se prueba.
+- MediaMTX escucha sólo en `127.0.0.1`. Su configuración la escribe el motor y se prueba: por omisión MoQ queda abierto en todas las interfaces (visto en la verificación) y acepta cualquier origen.
+- La API de configuración de MediaMTX devuelve la dirección de la cámara con contraseña: el motor nunca la reenvía.
 - Sesión por cookie: el motor guarda un token en un archivo `0600`; la ventana abre `/?t=…`, el motor lo cambia por una cookie `HttpOnly; SameSite=Strict` y redirige. Un `<video>` no puede mandar cabeceras, la cookie sí viaja.
 - El motor valida `Host` (contra DNS rebinding) y `Origin` en toda escritura.
 - El celular se empareja con un código de un solo uso que muestra la ventana.
@@ -78,10 +79,10 @@ Causas: `sleep`, `camera`, `network`, `engine`, `power`, `update`, `disk`, `paus
 - **Más visores:** MediaMTX reparte el mismo stream sin abrir más conexiones a la cámara.
 - **Meses de grabación:** segmentos de 1 h (24 filas por día y cámara). El índice se alimenta de los avisos de segmento de MediaMTX, nunca escaneando; el escaneo sólo al arrancar. Los tramos no se guardan: se funden segmentos contiguos al leer.
 - **Zona horaria:** disco e índice en UTC; el día local (de 23, 24 o 25 h) es asunto de la API.
-- **Ronda:** `GET /api/cameras/{id}/rounds/{date}?tz=` → `{date, tz, startMs, endMs, coverage, live, spans[], gaps[], events[]}`, con `ETag` fuerte para días pasados. El video se pide por tramo, no por día.
+- **Ronda:** `GET /api/cameras/{id}/rounds/{date}?tz=` → `{date, tz, startMs, endMs, coverage, live, spans[], gaps[], events[]}`, con `ETag` fuerte para días pasados. El video se pide por rango y cada salto es una petición nueva (40 ms medidos).
 - **Miniaturas y arrastre rápido:** se graba también `stream2` (720p, ~0.5 Mbps); de ahí salen miniaturas, vista previa al pasar el cursor y vista remota, sin decodificar el 1080p.
 - **Retención:** MediaMTX no borra nada; sólo el motor, del más viejo al más nuevo, por días y por % de disco, saltando lo que cubre un recorte. Piso de espacio libre y retención de emergencia antes de dejar de grabar.
-- **Disco:** medido 1.17 Mbps de noche en `stream1` (límite de la cámara: 1.23 Mbps): unos 13 GB por día, más ~5 GB si se graba `stream2`.
+- **Disco:** medido de noche con MediaMTX, audio incluido: `stream1` 1.24 Mbps y `stream2` 0.37 Mbps, unos 17 GB por día los dos.
 
 Presupuestos a medir en la Fase 2 (estimaciones, no mediciones): motor en reposo ≤ 0.5 % de un núcleo y ≤ 100 MB; MediaMTX ≤ 2 % y ≤ 80 MB por cámara; vivo ≤ 500 ms de retraso y primer cuadro ≤ 2 s; ronda ≤ 50 ms en la API; instalador ≤ 200 MB. El costo real está en la detección, las miniaturas y los vatios de no dormir, no en el motor ni en el front.
 
@@ -136,28 +137,22 @@ Tres proyectos, no cinco: para este tamaño, `Application` e `Infrastructure` ap
 - [x] Estructura, vocabulario y reglas (`CLAUDE.md`).
 - [x] Prototipo navegable: En vivo, Ronda, Sucesos, Recortes, Cámaras, Continuidad, Ajustes, Bienvenida y Escritorio (bandeja, avisos y estados de la guardia).
 - [x] Revisión de diseño, arquitectura y continuidad; hallazgos aplicados.
-- [ ] Aprobación del usuario.
+- [x] Aprobada por el usuario el 2026-11-12.
 
 ### 1 · Verificación con la cámara real
 
-Hecho el 2026-11-12 lo que no requería instalar nada (`docs/verification.md`): los dos streams, códecs, cuadros clave, peso, CPU, sesiones simultáneas, ONVIF (PTZ, perfiles, suscripción a eventos) y que el MP4 no admite G.711.
+Hecha el 2026-11-12 (`docs/verification.md`): streams, códecs, peso, CPU, sesiones simultáneas, MediaMTX grabando los dos streams, video por rango, vivo por WebRTC en Chrome, corte a la fuerza, fugas de contraseña, puertos, PTZ y eventos por ONVIF.
 
-Falta, y requiere descargar MediaMTX (se pide permiso antes):
-
-- [ ] MediaMTX grabando `stream1` y `stream2` 2 h: sin cortes, CPU, y si sus logs o su API muestran la contraseña.
-- [ ] Video por rango cruzando un cambio de segmento y cruzando un hueco; salto a media hora de un segmento.
-- [ ] WebRTC dentro de la ventana de Tauri en WKWebView y WebView2, con sonido; retraso medido.
-- [ ] Matar el proceso y cortar el WiFi de la cámara: qué se pierde y en cuánto vuelve MediaMTX por su cuenta.
-- [ ] Que los eventos ONVIF lleguen con movimiento real (la suscripción se creó, pero no llegó ninguno en 10 s sin movimiento).
-- [ ] Mover la cámara por ONVIF (no se probó para no moverla sin avisar).
-- [ ] «Auto Reboot» de la Tapo: revisarlo y apagarlo. Modo privacidad: qué le pasa al stream.
-- **Listo cuando** `docs/verification.md` tiene cada punto y las decisiones 5 a 7 y 10 quedan cerradas.
+- [x] Decisiones 5, 7 y 10 cerradas con datos.
+- [ ] WebRTC y audio PCM dentro de la ventana de Tauri, en WKWebView y WebView2 (cierra la decisión 6). Se hace con la ventana mínima de la Fase 4 o antes con Safari.
+- [ ] Corrida de 2 h o más y corte del WiFi de la cámara: en cuánto vuelve MediaMTX por su cuenta.
+- [ ] En la app Tapo: «Auto Reboot» y modo privacidad.
 
 ### 2 · Motor
 
 Ramas `feature/engine-record`, `feature/engine-continuity`, `feature/engine-api`, `feature/engine-retention`.
 
-- [ ] Supervisor de MediaMTX: escribe su configuración, lo readopta si ya corre, lo reinicia si muere.
+- [ ] Supervisor de MediaMTX: escribe su configuración (sólo `127.0.0.1`, MoQ y salidas apagadas, `%z` en el nombre de archivo, rutas sin guion bajo), lo readopta si ya corre, lo reinicia si muere.
 - [ ] Continuidad, capas 1 a 7, con pruebas del cálculo de huecos y de la vigía.
 - [ ] Índice SQLite alimentado por los avisos de segmento; reconstrucción al arrancar.
 - [ ] API con sesión: `summary`, `cameras`, `rounds/{date}`, `events`, `clips`, `settings`, `ptz`, `live`, `media`. Contrato en `docs/api.md`.

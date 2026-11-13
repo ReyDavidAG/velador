@@ -68,6 +68,8 @@
 - Vista previa al pasar el cursor en la ronda y miniaturas de sucesos, pedidas por rango al stream ligero.
 - La cámara emitió eventos reales de movimiento: el lector quedó confirmado. Se unen los que llegan a menos de 10 s para no llenar la lista.
 - Aviso del sistema por persona en la app de escritorio.
+- El vivo se cura solo: si deja de llegar video 6 s (medido por las estadísticas de la conexión), reconecta. Probado en la ventana real cortando la sesión desde el servidor: volvió en 9 s. Con la ventana oculta más de un minuto, suelta la conexión y la retoma al volver.
+- Durante las pruebas hubo dos ocasiones en que el vivo de la ventana se cayó sin recuperarse; no se pudo reproducir después (estuvo estable varios minutos al frente, detrás y oculta). El vigilante anterior cubre ese caso, pero la causa no quedó identificada.
 - 78 pruebas del motor y 14 de la app. Todas las pantallas recorridas en WebKit sin errores y sin desbordes.
 - La imagen de la cámara sale de cabeza porque así está montada; conviene invertirla en la app de la cámara (así el texto de la hora queda derecho) o con el giro de Velador.
 

@@ -46,6 +46,7 @@ public sealed class Storage(EngineSettings settings, string fallback, TimeProvid
 		var moved = 0;
 		foreach (var file in Directory.EnumerateFiles(fallback, "*.mp4", SearchOption.AllDirectories))
 		{
+			if (Path.GetRelativePath(fallback, file).StartsWith("clips", StringComparison.Ordinal)) continue;
 			var target = Path.Combine(Primary, Path.GetRelativePath(fallback, file));
 			try
 			{

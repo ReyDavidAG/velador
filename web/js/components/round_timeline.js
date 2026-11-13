@@ -33,7 +33,7 @@ export const roundHtml = (r, w = { from: 0, to: r.len }, { mini = false, clip = 
 		<div class="rt-events">${events}</div>
 		<div class="rt-track">${spans}${gaps}${future}${sel}</div>
 		<div class="rt-hours">${hours}</div>
-		<div class="rt-hover" hidden><div class="rt-peek"><span class="rt-peek-t"></span><span class="rt-peek-l"></span></div></div>
+		<div class="rt-hover" hidden><div class="rt-peek">${mini ? '' : '<video class="rt-peek-v" muted playsinline preload="auto"></video>'}<span class="rt-peek-t"></span><span class="rt-peek-l"></span></div></div>
 		<div class="rt-cursor" hidden><span class="rt-flag"></span></div>
 	</div>`
 }

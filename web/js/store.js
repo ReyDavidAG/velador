@@ -20,6 +20,8 @@ export const state = {
 	skipGaps: true,
 	win: null,
 	muted: true,
+	clip: null,
+	filter: 'all',
 }
 
 export const toRound = (raw, i) => {
@@ -50,3 +52,12 @@ export const loadSummary = async () => {
 }
 
 export const loadRound = async i => toRound(await api.round(state.camera.id, dateKey(dayAgo(i))), i)
+
+export const DAYS = 7
+let week = { at: 0, rounds: null }
+export const loadWeek = async (fresh = false) => {
+	if (!fresh && week.rounds && Date.now() - week.at < 20000) return week.rounds
+	const rounds = await Promise.all(Array.from({ length: DAYS }, (_, i) => loadRound(i).catch(() => null)))
+	week = { at: Date.now(), rounds }
+	return rounds
+}

@@ -1,0 +1,35 @@
+const send = async (method, path, body) => {
+	const response = await fetch(`/api${path}`, {
+		method,
+		credentials: 'same-origin',
+		headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+		body: body === undefined ? undefined : JSON.stringify(body),
+	})
+	if (response.status === 401) throw new Error('unauthorized')
+	const data = response.status === 204 ? null : await response.json().catch(() => null)
+	if (!response.ok) throw new Error(data?.error ?? `http ${response.status}`)
+	return data
+}
+
+export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+export const api = {
+	summary: () => send('GET', '/summary'),
+	round: (cameraId, date) => send('GET', `/cameras/${cameraId}/rounds/${date}?tz=${encodeURIComponent(zone)}`),
+	move: (cameraId, x, y) => send('POST', `/cameras/${cameraId}/ptz`, { x, y }),
+	mediaUrl: (cameraId, startMs, durationMs, stream = 'main') => `/api/cameras/${cameraId}/media?startMs=${Math.round(startMs)}&durationMs=${Math.round(durationMs)}&stream=${stream}`,
+	settings: () => send('GET', '/settings'),
+	saveSettings: body => send('PUT', '/settings', body),
+	releaseDisk: () => send('POST', '/storage/release'),
+	reclaimDisk: () => send('POST', '/storage/reclaim'),
+	cameras: () => send('GET', '/cameras'),
+	discover: () => send('GET', '/cameras/discover'),
+	testCamera: body => send('POST', '/cameras/test', body),
+	saveCamera: (id, body) => send('PUT', `/cameras/${id}`, body),
+	removeCamera: id => send('DELETE', `/cameras/${id}`),
+	clips: () => send('GET', '/clips'),
+	addClip: (cameraId, body) => send('POST', `/cameras/${cameraId}/clips`, body),
+	removeClip: id => send('DELETE', `/clips/${id}`),
+	revealClip: id => send('POST', `/clips/${id}/reveal`),
+	clipUrl: id => `/api/clips/${id}/file`,
+}

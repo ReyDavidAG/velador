@@ -49,6 +49,7 @@ builder.Services.AddHostedService<EventService>();
 builder.Services.AddSingleton<INetworkProbe, SystemNetworkProbe>();
 builder.Services.AddSingleton<RelocateService>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RelocateService>());
+builder.Services.AddSingleton<FaceEnhancer>();
 builder.Services.AddSingleton<VisionService>();
 builder.Services.AddHostedService(s => s.GetRequiredService<VisionService>());
 

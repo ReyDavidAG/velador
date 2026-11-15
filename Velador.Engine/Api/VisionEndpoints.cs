@@ -19,6 +19,20 @@ public static class VisionEndpoints
 			database.SightingOf(sightingId) is { } s && File.Exists(s.File) ? Results.File(s.File, "image/png") : Results.NotFound());
 		api.MapGet("/sightings/{sightingId:long}/face", (long sightingId, EngineDatabase database) =>
 			database.SightingOf(sightingId) is { Face: { Length: > 0 } face } && File.Exists(face) ? Results.File(face, "image/png") : Results.NotFound());
+		api.MapGet("/sightings/{sightingId:long}/fused", (long sightingId, EngineDatabase database) =>
+			database.SightingOf(sightingId) is { Fused: { Length: > 0 } fused } && File.Exists(fused) ? Results.File(fused, "image/png") : Results.NotFound());
+		api.MapDelete("/sightings/{sightingId:long}", (long sightingId, EngineDatabase database) =>
+		{
+			foreach (var file in database.RemoveSighting(sightingId))
+			{
+				try
+				{
+					File.Delete(file);
+				}
+				catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+			}
+			return Results.NoContent();
+		});
 		api.MapDelete("/people/{personId:long}", (long personId, EngineDatabase database) =>
 		{
 			foreach (var file in database.RemovePerson(personId))
@@ -48,8 +62,11 @@ public static class VisionEndpoints
 			targetId = s.TargetId,
 			coasting = s.Coasting,
 			returning = s.Returning,
-			command = new { x = Math.Round(s.Command.X, 2), y = Math.Round(s.Command.Y, 2) },
-			calibration = c is null ? null : new { c.GainX, c.GainY, c.LagS, c.Continuous, c.AtMs },
+			atLimit = vision.AtLimit(id),
+			zone = vision.Zone(id) is not null,
+			busy = vision.Busy(id),
+			command = new { x = Math.Round(s.Command.X, 3), y = Math.Round(s.Command.Y, 3) },
+			calibration = c is null ? null : new { c.GainX, c.GainY, c.LagS, c.Continuous, c.AtMs, c.ViewPerX, c.ViewPerY, c.Levels, c.RatesX, c.RatesY },
 			tracks = s.Tracks.Select(t => new { t.Id, x = R(t.Box.X), y = R(t.Box.Y), w = R(t.Box.W), h = R(t.Box.H), score = R(t.Score), seen = t.SeenNow }),
 			atMs = s.AtMs,
 		};
@@ -86,7 +103,7 @@ public static class VisionEndpoints
 		try
 		{
 			await vision.CalibrateAsync(camera, ct);
-			return Results.Ok(View(id, vision));
+			return Results.Ok(new { view = View(id, vision), steps = vision.CalibrationLog.ToList() });
 		}
 		catch (Exception e) when (e is InvalidOperationException or HttpRequestException or TimeoutException or OperationCanceledException or System.Xml.XmlException)
 		{
@@ -106,7 +123,7 @@ public static class VisionEndpoints
 			lastMs = p.LastMs,
 			coverId = p.Sightings.MaxBy(s => s.Score)!.Id,
 			faceId = p.Sightings.Where(s => !string.IsNullOrEmpty(s.Face)).MaxBy(s => s.Score)?.Id,
-			sightings = p.Sightings.Select(s => new { s.Id, startMs = s.StartMs, endMs = s.EndMs, face = !string.IsNullOrEmpty(s.Face) }),
+			sightings = p.Sightings.Select(s => new { s.Id, startMs = s.StartMs, endMs = s.EndMs, face = !string.IsNullOrEmpty(s.Face), fused = !string.IsNullOrEmpty(s.Fused), facePx = s.FacePx }),
 		}));
 	}
 }

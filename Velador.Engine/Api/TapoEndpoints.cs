@@ -14,6 +14,71 @@ public static class TapoEndpoints
 
 	public sealed record WifiRequest(string Ssid, string? Password);
 
+	public sealed record PictureRequest(string Name, string Value);
+
+	static readonly Dictionary<string, string> Toggles = new() { ["wdr"] = "wide_dynamic", ["hlc"] = "high_light_compensation", ["backlight"] = "backlight", ["dehaze"] = "dehaze" };
+	static readonly Dictionary<string, string> Levels = new() { ["brightness"] = "luma", ["contrast"] = "contrast", ["sharpness"] = "sharpness", ["saturation"] = "saturation" };
+
+	static string? Text(System.Text.Json.Nodes.JsonNode? node) => node?.GetValue<string>();
+
+	static int Number(System.Text.Json.Nodes.JsonNode? node) => int.TryParse(Text(node), out var n) ? n : 0;
+
+	static IEnumerable<string> Options(System.Text.Json.Nodes.JsonNode capability, string key) =>
+		capability[key]?.AsArray().Select(n => n!.GetValue<string>()) ?? [];
+
+	static async Task<object> PictureView(TapoClient tapo, CancellationToken ct)
+	{
+		var (common, toggles, main, capability) = await tapo.PictureAsync(ct);
+		return new
+		{
+			wdr = Text(common["wide_dynamic"]) == "on",
+			hlc = Text(common["high_light_compensation"]) == "on",
+			backlight = Text(common["backlight"]) == "on",
+			dehaze = Text(common["dehaze"]) == "on",
+			brightness = Number(common["luma"]),
+			contrast = Number(common["contrast"]),
+			sharpness = Number(common["sharpness"]),
+			saturation = Number(common["saturation"]),
+			ldc = Text(toggles["ldc"]) == "on",
+			bitrate = Number(main["bitrate"]),
+			bitrateType = Text(main["bitrate_type"]),
+			quality = Number(main["quality"]),
+			frameRate = Number(main["frame_rate"]) & 0xFFFF,
+			resolution = Text(main["resolution"]),
+			codec = Text(main["encode_type"]),
+			options = new
+			{
+				bitrates = Options(capability, "bitrates").Select(int.Parse).Order(),
+				frameRates = Options(capability, "frame_rates").Select(f => int.Parse(f) & 0xFFFF).Order(),
+				qualities = Options(capability, "qualitys").Select(int.Parse).Order(),
+				bitrateTypes = Options(capability, "bitrate_types"),
+			},
+		};
+	}
+
+	static async Task<IResult> SetPicture(string id, PictureRequest request, TapoLinks links, CancellationToken ct) => await Run(links, id, async tapo =>
+	{
+		var value = request.Value?.Trim() ?? "";
+		if (Toggles.TryGetValue(request.Name, out var toggle) && value is "on" or "off") await tapo.SetCommonAsync(toggle, value, ct);
+		else if (Levels.TryGetValue(request.Name, out var level) && int.TryParse(value, out var amount) && amount is >= 0 and <= 100) await tapo.SetCommonAsync(level, amount.ToString(System.Globalization.CultureInfo.InvariantCulture), ct);
+		else if (request.Name == "ldc" && value is "on" or "off") await tapo.SetImageAsync("ldc", value, ct);
+		else if (request.Name is "bitrate" or "bitrateType" or "quality" or "frameRate")
+		{
+			var (_, _, _, capability) = await tapo.PictureAsync(ct);
+			var (key, list, sent) = request.Name switch
+			{
+				"bitrate" => ("bitrate", "bitrates", value),
+				"bitrateType" => ("bitrate_type", "bitrate_types", value),
+				"quality" => ("quality", "qualitys", value),
+				_ => ("frame_rate", "frame_rates", int.TryParse(value, out var fps) ? (0x10000 + fps).ToString(System.Globalization.CultureInfo.InvariantCulture) : ""),
+			};
+			if (!Options(capability, list).Contains(sent)) return Results.BadRequest(new { error = "La cámara no admite ese valor." });
+			await tapo.SetVideoAsync(key, sent, ct);
+		}
+		else return Results.BadRequest(new { error = "Ese ajuste no existe o el valor no es válido." });
+		return Results.Ok(await PictureView(tapo, ct));
+	});
+
 	public static void MapTapo(this RouteGroupBuilder api)
 	{
 		api.MapGet("/cameras/{id}/extras", (string id, TapoLinks links, CancellationToken ct) => Run(links, id, async tapo =>
@@ -29,6 +94,32 @@ public static class TapoEndpoints
 				nightModes = Modes.Where(m => modes.Contains(m.Value)).Select(m => m.Key),
 				flipped = image["flip_type"]?.GetValue<string>() is { } flip && flip != "off",
 			});
+		}));
+		api.MapGet("/cameras/{id}/image", (string id, TapoLinks links, CancellationToken ct) => Run(links, id, async tapo => Results.Ok(await PictureView(tapo, ct))));
+		api.MapPut("/cameras/{id}/image", SetPicture);
+		api.MapGet("/cameras/{id}/image/raw", (string id, TapoLinks links, CancellationToken ct) => Run(links, id, async tapo =>
+		{
+			var queries = new (string Name, string Method, string Json)[]
+			{
+				("image", "getLdc", "{\"image\":{\"name\":[\"switch\",\"common\"]}}"),
+				("video", "getVideoQualities", "{\"video\":{\"name\":[\"main\",\"minor\"]}}"),
+				("videoCapability", "getVideoCapability", "{\"video_capability\":{\"name\":\"main\"}}"),
+				("imageCapability", "getImageCapability", "{\"image_capability\":{\"name\":[\"switch\",\"common\",\"supplement_lamp\"]}}"),
+				("osd", "getOsd", "{\"OSD\":{\"name\":[\"date\",\"week\",\"font\"],\"table\":[\"label_info\"]}}"),
+			};
+			var answers = new Dictionary<string, object?>();
+			foreach (var (name, method, json) in queries)
+			{
+				try
+				{
+					answers[name] = await tapo.QueryAsync(method, json, ct);
+				}
+				catch (TapoException e)
+				{
+					answers[name] = new { error = e.Message, code = e.Code };
+				}
+			}
+			return Results.Ok(answers);
 		}));
 		api.MapPost("/cameras/{id}/light", (string id, LightRequest request, TapoLinks links, CancellationToken ct) =>
 			Run(links, id, async tapo => Results.Ok(new { on = await tapo.SetLightAsync(request.On, ct) })));

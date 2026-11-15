@@ -4,7 +4,8 @@ namespace Velador.Tests;
 
 public class FollowTests
 {
-	static readonly FollowGeometry Measured = new(2.24, 1.01, 1.4, 0.15, 0.5 * 0.55, 0.67 * 0.55);
+	static readonly FollowGeometry Measured = new(2.24, 1.01, 1.4, 0.15, 0.5 * 0.55, 0.67 * 0.55, 0.5, 0.67);
+	static readonly FollowGeometry Trusting = Measured with { TopRateX = 0, TopRateY = 0 };
 	static readonly PtzZone Zone = new(-0.35, 0.35, -0.7, 0.2, 0.35, -0.5, -0.33, 0, 0.05, -0.33);
 
 	sealed class Street(double speed, double from, double to, double lagS = 1.5, int seed = 1, bool slices = false)
@@ -176,7 +177,7 @@ public class FollowTests
 	public void A_camera_that_turns_one_axis_at_a_time_gets_them_in_turns()
 	{
 		var both = new PtzRate(0.2, -0.3);
-		var turn = new AxisTurn();
+		var turn = new AxisTurn(1.8);
 		void Expect(double x, double y, long ms)
 		{
 			var sent = turn.Step(both, ms, 0.5, 0.6);
@@ -190,6 +191,27 @@ public class FollowTests
 		Expect(0, -0.54, AxisTurn.LongMs + AxisTurn.HoldMs - 100);
 		Expect(0.36, 0, AxisTurn.LongMs + AxisTurn.HoldMs);
 		Assert.Equal(new PtzRate(0.2, 0), turn.Step(new PtzRate(0.2, 0), 9000, 0.5, 0.6));
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void A_camera_that_reports_its_position_late_does_not_make_a_still_person_look_like_walking(bool knowsTopSpeed)
+	{
+		var follower = new PathFollower();
+		follower.Configure(knowsTopSpeed ? Measured : Trusting, null);
+		static double Camera(long ms) => Math.Clamp((ms - 2000) / 1000.0, 0, 1) * 0.4;
+		var fastest = 0.0;
+		for (var ms = 0L; ms <= 6000; ms += 100)
+		{
+			follower.Pose(ms, Camera(ms / 400 * 400), -0.3);
+			var seen = 0.5 + (0.2 - Camera(ms - 1400)) * Measured.ViewPerX;
+			follower.Step([new TrackState(1, Box.FromCenter(seen, 0.5, 0.08, 0.3), 0, 0, 0.9, true, 0, ms)], ms);
+			if (ms > 1500) fastest = Math.Max(fastest, Math.Abs(follower.Trace?.PersonRate ?? 0));
+		}
+
+		if (knowsTopSpeed) Assert.True(fastest < 0.15, $"{fastest:0.000}");
+		else Assert.True(fastest > 0.3, $"{fastest:0.000}");
 	}
 
 	[Fact]

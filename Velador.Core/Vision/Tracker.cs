@@ -41,9 +41,9 @@ sealed class KalmanAxis(double position, double processNoise, double measurement
 		(_p00, _p01, _p11) = (p00, p01, p11);
 	}
 
-	public void Update(double z)
+	public void Update(double z, double extraNoise = 0)
 	{
-		var s = _p00 + measurementNoise;
+		var s = _p00 + measurementNoise + extraNoise;
 		var k0 = _p00 / s;
 		var k1 = _p01 / s;
 		var y = z - Position;

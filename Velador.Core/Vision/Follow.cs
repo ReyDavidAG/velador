@@ -7,8 +7,9 @@ public readonly record struct PtzRate(double X, double Y)
 
 }
 
-public sealed class AxisTurn
+public sealed class AxisTurn(double boost = AxisTurn.Boost)
 {
+	public const double Boost = 1.5;
 	public const int HoldMs = 800;
 	public const int LongMs = 1600;
 	const double PanFirst = 1.3;
@@ -36,11 +37,11 @@ public sealed class AxisTurn
 			_pan = !_pan;
 			_sinceMs = nowMs;
 		}
-		return _pan ? new PtzRate(Math.Clamp(rate.X * 1.8, -maxX, maxX), 0) : new PtzRate(0, Math.Clamp(rate.Y * 1.8, -maxY, maxY));
+		return _pan ? new PtzRate(Math.Clamp(rate.X * boost, -maxX, maxX), 0) : new PtzRate(0, Math.Clamp(rate.Y * boost, -maxY, maxY));
 	}
 }
 
-public sealed record FollowGeometry(double ViewPerX, double ViewPerY, double LagS, double ActuationS, double MaxRateX, double MaxRateY);
+public sealed record FollowGeometry(double ViewPerX, double ViewPerY, double LagS, double ActuationS, double MaxRateX, double MaxRateY, double TopRateX = 0, double TopRateY = 0);
 
 public sealed record FollowTrace(long AtMs, string State, double CamX, double CamY, int? Target, double ImageX, double ImageY, double PersonX, double PersonRate, double AimX, double AimY, double RateX, double RateY, double LagS);
 
@@ -61,6 +62,8 @@ public sealed class PathFollower
 	const double MaxOffTheRoute = 0.15;
 	const double ReacquireWidths = 0.35;
 	const long HistoryMs = 8000;
+	const long MaxBackdateMs = 1000;
+	const double PoseDoubtS = 0.25;
 	static readonly double[] LagOffsets = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45];
 
 	readonly Lock _lock = new();
@@ -98,6 +101,17 @@ public sealed class PathFollower
 	{
 		lock (_lock)
 		{
+			if (_poses.Count > 0 && _geometry is { TopRateX: > 0, TopRateY: > 0 } g)
+			{
+				var last = _poses[^1];
+				var needMs = (long)Math.Min(MaxBackdateMs, 1000 * Math.Max(Math.Abs(x - last.X) / (g.TopRateX * 1.15), Math.Abs(y - last.Y) / (g.TopRateY * 1.15)));
+				var startMs = atMs - needMs;
+				if (startMs < last.AtMs && PoseAt(startMs) is { } start)
+				{
+					_poses.RemoveAll(p => p.AtMs >= startMs);
+					_poses.Add((startMs, start.X, start.Y));
+				}
+			}
 			_poses.Add((atMs, x, y));
 			while (_poses.Count > 2 && _poses[1].AtMs < atMs - HistoryMs) _poses.RemoveAt(0);
 		}
@@ -156,6 +170,8 @@ public sealed class PathFollower
 				var capturedMs = nowMs - lagMs;
 				var fresh = _person is null || _targetId != target.Id && Math.Abs(_person.Position - x) > ReacquireWidths / Math.Abs(g.ViewPerX);
 				var elapsed = Math.Clamp((capturedMs - _measuredMs) / 1000.0, 0.01, 1);
+				var turning = g.TopRateX > 0 && PoseAt(capturedMs + 100) is { } after && PoseAt(capturedMs - 100) is { } before ? Math.Abs(after.X - before.X) / 0.2 : 0;
+				var doubt = turning * PoseDoubtS * (turning * PoseDoubtS);
 				for (var k = 0; k < LagOffsets.Length; k++)
 				{
 					var at = PoseAt(nowMs - lagMs - (long)((LagOffsets[k] - LagOffsets[_best]) * 1000)) ?? then;
@@ -168,7 +184,7 @@ public sealed class PathFollower
 					guess.Predict(elapsed);
 					var miss = seen - guess.Position;
 					_misses[k] = _misses[k] * 0.985 + miss * miss;
-					guess.Update(seen);
+					guess.Update(seen, doubt);
 				}
 				var smoothest = Array.IndexOf(_misses, _misses.Min());
 				if (!fresh && _misses[smoothest] < _misses[_best] * 0.7 && _misses[_best] > 1e-6) _best = smoothest;

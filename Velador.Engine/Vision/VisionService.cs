@@ -596,7 +596,7 @@ public sealed class VisionService(
 			return;
 		}
 		var both = calibration.BothAxes ? 1 : 0.55;
-		v.Follow.Configure(new FollowGeometry(calibration.ViewPerX, calibration.ViewPerY, calibration.LagS, calibration.ActS, calibration.CurveX.Top * both, calibration.CurveY.Top * both), Zone(v.Camera.Id));
+		v.Follow.Configure(new FollowGeometry(calibration.ViewPerX, calibration.ViewPerY, calibration.LagS, calibration.ActS, calibration.CurveX.Top * both, calibration.CurveY.Top * both, calibration.CurveX.Top, calibration.CurveY.Top), Zone(v.Camera.Id));
 		v.Wanted = v.Follow.Step(tracks, now);
 		v.TargetId = v.Follow.TargetId;
 		v.Coasting = v.Follow.Coasting;

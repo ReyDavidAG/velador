@@ -72,6 +72,7 @@ const mount = main => {
 	let loadTimer = 0
 	let raf = 0
 	let alive = true
+	let shownPlaying = null
 
 	const spanAt = t => r.spans.find(s => t >= s.start && t < s.end)
 	const clipBar = main.querySelector('[data-clipbar]')
@@ -114,7 +115,12 @@ const mount = main => {
 			main.querySelector('[data-veil-sub]').textContent = gap.none ? (before ? `La guardia empezó a las ${r.clock(r.from)}` : 'No hay grabación en este momento') : `Sin grabación de ${r.clock(gap.start)} a ${r.clock(gap.end)} · ${span(gap.end - gap.start)}`
 			main.querySelector('[data-skip]').hidden = Boolean(gap.none) && !before
 		}
-		main.querySelector('[data-play-ico]').innerHTML = state.playing ? I.pause : I.play
+		if (shownPlaying !== state.playing) {
+			shownPlaying = state.playing
+			const button = main.querySelector('[data-play]')
+			button.querySelector('[data-play-ico]').innerHTML = state.playing ? I.pause : I.play
+			button.title = state.playing ? 'Pausar (espacio)' : 'Reproducir (espacio)'
+		}
 	}
 
 	const load = () => {

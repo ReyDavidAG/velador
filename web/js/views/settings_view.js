@@ -50,7 +50,7 @@ const body = s => {
 	</section>
 	<section class="card"><header class="card-head"><h2>${I.person}Personas</h2><span class="chip" data-vision-chip>…</span></header>
 		${row('Detectar personas', 'Velador mira el stream ligero de la cámara, guarda una foto de cada persona y marca el suceso en la ronda. Todo en este equipo.', toggle('detectPeople', s.detectPeople, 'Detectar personas'))}
-		${row('Calibrar el movimiento', 'Mide cuánto y en qué dirección gira la cámara y el retraso del video, para seguir a las personas y para que las flechas vayan hacia donde dicen. La cámara gira un poco y regresa; tarda unos 30 s.', '<button class="btn small" type="button" data-calibrate>Calibrar</button>')}
+		${row('Calibrar el movimiento', 'Mide cuánto y en qué dirección gira la cámara y el retraso del video, para seguir a las personas y para que las flechas vayan hacia donde dicen. La cámara gira un poco y regresa; tarda cerca de un minuto. Repítela si cambias la cámara de lugar.', '<button class="btn small" type="button" data-calibrate>Calibrar</button>')}
 		<p class="muted-s" data-calibration></p>
 		<p class="note">${I.alert}<span>Si usas el seguimiento de Velador, apaga el <b>seguimiento de movimiento</b> en la app Tapo: si los dos mueven la cámara a la vez, se estorban.</span></p>
 	</section>

@@ -87,9 +87,13 @@ Usa módulos ES: necesita servidor. Después de editar, recarga con Cmd+Shift+R.
 ### Diseño
 
 - Escritorio primero (1280 px), sin romper en 375 px.
-- Oscuro por omisión, con tema claro. El color es sólo para datos: grabado verde azulado, movimiento ámbar, persona violeta, hueco rayado, en vivo rojo.
-- Tipografía: Schibsted Grotesk (texto) y JetBrains Mono (horas, cifras, folios).
-- Pieza de identidad: **la ronda**, la línea de tiempo de 24 horas con tramos, huecos y sucesos; y la hora en mono sobre la imagen.
+- Tema: **turno de noche**, la caseta de un velador con monitores de tubo, inspirada en los juegos de guardia nocturna pero con identidad propia: nunca se usan personajes, logos ni imágenes de un juego. Noche por omisión (casi negro con letrero ámbar) y día (crema con rojo).
+- El color de datos no cambia de significado: grabado verde azulado, movimiento ámbar, persona violeta, hueco rayado, en vivo rojo.
+- Logo y mascota: **Sereno**, un perro velador con gorra (`web/js/components/mascot.js`, `desktop/art/`). Avisa con los ojos: amarillos en calma, violetas si hay alguien, rojos si no se graba, cerrados con la guardia en pausa.
+- Tipografía, servida desde `web/fonts`: Bungee (letrero: títulos y marca), Rubik (texto), VT323 (monitor: horas y cifras grandes), JetBrains Mono (cifras chicas y folios) y Special Elite (papel: fichas y etiquetas).
+- Piezas de identidad: **la ronda**, la línea de tiempo de 24 horas con tramos, huecos y sucesos; el monitor con marco alrededor del vivo; y las fotos de personas clavadas a un corcho.
+- Sobre el video real los efectos de monitor son mínimos y se quitan al acercar y en pantalla completa: la imagen manda.
+- El tema vive en `web/styles/tokens.css` (colores y letras) y `web/styles/skin.css` (piezas); `app.css` conserva la estructura.
 - Animación sólo con `transform`/`opacity`, apagada con `prefers-reduced-motion`.
 - Contraste AA y foco visible siempre.
 

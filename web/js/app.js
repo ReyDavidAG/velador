@@ -1,5 +1,6 @@
+import { mascot, setMood, watchPointer } from './components/mascot.js'
 import { loadSummary, state } from './store.js'
-import { clockAt, esc, HERE, I, NAV, span } from './ui.js'
+import { CAUSE, clockAt, esc, HERE, I, NAV, span } from './ui.js'
 import { camerasView } from './views/cameras_view.js'
 import { clipsView } from './views/clips_view.js'
 import { continuityView } from './views/continuity_view.js'
@@ -28,13 +29,13 @@ const links = mobile =>
 		.map(n => `${!mobile && n.group ? `<span class="nav-group">${n.group}</span>` : ''}<a href="${n.href}" data-path="${n.href.slice(1)}">${I[n.icon]}<span>${esc(n.label)}</span></a>`)
 		.join('')
 
-const mark = `<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="2.6"/><circle class="mark-eye" cx="16" cy="16" r="4.4"/></svg>`
+const brand = cls => `<a class="brand ${cls}" href="#/" title="Sereno, el velador">${mascot()}<span>Velador</span></a>`
 
 const shell = () => `
 	<div class="shell">
 		<aside class="sidebar">
-			<a class="brand" href="#/">${mark}<span>Velador</span></a>
-			<nav class="nav" aria-label="Secciones">${links(false)}</nav>
+			${brand('')}
+			<nav class="nav" aria-label="Secciones"><i class="nav-pill" aria-hidden="true"></i>${links(false)}</nav>
 			<div class="guard">
 				<span class="guard-top" data-guard-top><span class="dot live ping"></span>De guardia</span>
 				<span class="guard-time mono" data-guard>—</span>
@@ -43,14 +44,16 @@ const shell = () => `
 		</aside>
 		<div class="body">
 			<header class="topbar">
-				<a class="brand small" href="#/">${mark}<span>Velador</span></a>
+				${brand('small')}
 				<h1 data-title></h1>
+				<span class="say" role="status"><i></i><span data-say>Todo en calma</span></span>
 				<span class="spacer"></span>
-				<button class="icon-btn" type="button" data-theme-toggle title="Cambiar tema"><span class="sr-only">Cambiar tema</span><span data-theme-icon></span></button>
+				<button class="icon-btn key" type="button" data-theme-toggle title="Cambiar entre día y noche"><span class="sr-only">Cambiar entre día y noche</span><span data-theme-icon></span></button>
+				<span class="top-clock" aria-hidden="true"><b data-top-clock></b><small data-top-date></small></span>
 			</header>
 			<main id="main" tabindex="-1"></main>
 		</div>
-		<footer class="tabbar"><nav class="nav" aria-label="Secciones">${links(true)}</nav></footer>
+		<footer class="tabbar"><nav class="nav" aria-label="Secciones"><i class="nav-pill" aria-hidden="true"></i>${links(true)}</nav></footer>
 		<div class="toast" role="status"></div>
 	</div>`
 
@@ -60,7 +63,48 @@ let loadedWeb = null
 const applyTheme = () => {
 	document.documentElement.dataset.theme = state.theme
 	const el = document.querySelector('[data-theme-icon]')
-	if (el) el.innerHTML = state.theme === 'dark' ? I.sun : I.moon
+	if (el) el.innerHTML = state.theme === 'dark' ? I.moon : I.sun
+}
+
+const calm = matchMedia('(prefers-reduced-motion: reduce)')
+const veil = document.querySelector('[data-splash]')
+
+const flipTheme = () => {
+	const flip = () => {
+		state.theme = state.theme === 'dark' ? 'light' : 'dark'
+		localStorage.setItem('velador-theme', state.theme)
+		applyTheme()
+	}
+	if (calm.matches || !veil) return flip()
+	veil.classList.add('on')
+	setTimeout(flip, 360)
+	setTimeout(() => veil.classList.remove('on'), 880)
+}
+
+const movePills = () => {
+	for (const nav of document.querySelectorAll('.nav')) {
+		const pill = nav.querySelector('.nav-pill')
+		const now = nav.querySelector('a[aria-current]')
+		pill.hidden = !now || !now.offsetWidth
+		if (pill.hidden) continue
+		pill.style.width = `${now.offsetWidth}px`
+		pill.style.height = `${now.offsetHeight}px`
+		pill.style.transform = `translate(${now.offsetLeft}px, ${now.offsetTop}px)`
+	}
+}
+
+const tickClock = () => {
+	const d = new Date()
+	const h = d.getHours()
+	document.querySelector('[data-top-clock]').textContent = `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+	document.querySelector('[data-top-date]').textContent = d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }).replaceAll('.', '')
+}
+
+const MOOD = {
+	on_guard: () => ['calm', 'Todo en calma'],
+	reconnecting: () => ['off', 'Reconectando con la cámara'],
+	gap: cam => ['off', CAUSE[cam.gap?.cause]?.label ?? 'Sin grabar'],
+	paused: () => ['sleep', 'Grabación en pausa'],
 }
 
 const since = ms => span(ms < 60000 ? ms / 1000 : Math.floor(ms / 60000) * 60)
@@ -72,12 +116,14 @@ const tickGuard = async () => {
 	} catch (e) {
 		if (e.message === 'unauthorized') return gate('Abre Velador desde la app o con el enlace de inicio para entrar.')
 		document.querySelector('[data-guard-top]').lastChild.textContent = 'Motor sin respuesta'
+		setMood('off', 'El motor no responde')
 		return
 	}
 	if (state.summary.web && loadedWeb && state.summary.web !== loadedWeb && !document.fullscreenElement) return location.reload()
 	loadedWeb ??= state.summary.web
 	const cam = state.camera
-	if (!cam) return
+	if (!cam) return setMood('calm', 'Listo para conectar tu cámara')
+	setMood(...(MOOD[cam.state]?.(cam) ?? ['calm', 'Todo en calma']))
 	if (state.summary.storage?.onFallback) document.querySelector('[data-guard-sub]').dataset.fallback = '1'
 	else delete document.querySelector('[data-guard-sub]').dataset.fallback
 	document.querySelector('[data-guard-top]').lastChild.textContent = LABEL[cam.state] ?? cam.state
@@ -86,13 +132,13 @@ const tickGuard = async () => {
 }
 
 const gate = message => {
+	veil?.classList.remove('on', 'boot')
 	document.getElementById('main').innerHTML = `<div class="page"><div class="empty"><span class="empty-ico">${I.lock}</span><b>Velador</b><p>${esc(message)}</p></div></div>`
 }
 
-export const render = () => {
+const swap = () => {
 	cleanup?.()
 	cleanup = null
-	if (!state.summary) return
 	const p = path()
 	const view = state.camera ? (ROUTES[p] ?? liveView) : welcomeView
 	document.querySelector('.shell').classList.toggle('bare', !state.camera)
@@ -103,10 +149,23 @@ export const render = () => {
 	document.title = `${view.title} · Velador`
 	for (const a of document.querySelectorAll('.nav a')) a.toggleAttribute('aria-current', a.dataset.path === (ROUTES[p] ? p : '/'))
 	main.scrollTop = 0
+	movePills()
+	veil?.classList.remove('on', 'boot')
+}
+
+export const render = () => {
+	if (!state.summary) return
+	if (document.startViewTransition && !calm.matches && !document.hidden && !document.fullscreenElement) document.startViewTransition(swap)
+	else swap()
 }
 
 document.getElementById('app').innerHTML = shell()
 applyTheme()
+watchPointer()
+tickClock()
+setInterval(tickClock, 1000)
+window.addEventListener('resize', movePills)
+document.fonts?.ready.then(movePills)
 setInterval(tickGuard, 5000)
 window.addEventListener('hashchange', () => {
 	render()
@@ -123,11 +182,7 @@ document.addEventListener('keydown', e => {
 	next.click()
 })
 document.addEventListener('click', e => {
-	if (e.target.closest('[data-theme-toggle]')) {
-		state.theme = state.theme === 'dark' ? 'light' : 'dark'
-		localStorage.setItem('velador-theme', state.theme)
-		applyTheme()
-	}
+	if (e.target.closest('[data-theme-toggle]')) flipTheme()
 	const sw = e.target.closest('[data-switch]')
 	if (sw) {
 		const on = sw.getAttribute('aria-checked') !== 'true'

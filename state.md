@@ -112,6 +112,16 @@
 - 78 pruebas del motor y 14 de la app. Todas las pantallas recorridas en WebKit sin errores y sin desbordes.
 - La imagen de la cámara sale de cabeza porque así está montada; conviene invertirla en la app de la cámara (así el texto de la hora queda derecho) o con el giro de Velador.
 
+## Rediseño: turno de noche (2026-11-15)
+
+- La app real (`web/`) lleva el tema nuevo: colores y letras en `tokens.css`, piezas en `skin.css`, Sereno en `components/mascot.js`. La lógica de las vistas no cambió, salvo En vivo: marco de monitor, dos medidores de aguja (cobertura de hoy y disco libre, con datos reales) y una palanca que mueve la cámara por el mismo camino que las flechas.
+- Sereno refleja el estado real: en calma de guardia, ojos rojos sin grabar o sin motor, ojos cerrados en pausa y violetas cuando la detección ve a alguien en el vivo.
+- Copiado a mano al motor instalado en esta PC (`%LOCALAPPDATA%\Velador\engine\web`); el motor no se reinició y la grabación no se tocó.
+- Revisado en capturas de Edge sin ventana contra el motor real: En vivo y Ronda de noche; En vivo, Personas, Continuidad, Cámaras y Ajustes de día. En esas capturas el video sale negro porque el navegador sin ventana no abre el vivo.
+- Sin revisar: Sucesos, Recortes, Bienvenida y el editor de zona con el tema nuevo; las animaciones y la palanca con una persona usándolas; WebKit; ancho de teléfono.
+- Íconos de escritorio y bandeja regenerados en `desktop/src-tauri/icons` desde `desktop/art`; la app instalada sigue con los anteriores hasta reinstalarla.
+- Las tipografías Schibsted Grotesk se quitaron; entran Bungee, Rubik, VT323 y Special Elite, bajadas de Google Fonts y servidas localmente.
+
 ## Repositorio
 
 `github.com/ReyDavidAG/velador`, público, con `main`, `develop` y ramas `feature/*`. Commits de una línea con el correo de Bitácora.

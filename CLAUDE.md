@@ -4,7 +4,7 @@ Guía para Claude Code en este repositorio. `plan.md` dice **qué sigue** y `sta
 
 ## Qué es Velador
 
-La app de escritorio (macOS y Windows) que graba y cuida una cámara IP de casa sin depender de la nube ni de una microSD: ve en vivo, graba 24/7 al disco, deja recorrer el día en una línea de tiempo y avisa cuando algo pasa. Empieza con una TP-Link Tapo C500 por RTSP/ONVIF y está hecha para sumar cámaras.
+La app de escritorio (macOS, Windows y Linux) que graba y cuida una cámara IP de casa sin depender de la nube ni de una microSD: ve en vivo, graba 24/7 al disco, deja recorrer el día en una línea de tiempo y avisa cuando algo pasa. Empieza con una TP-Link Tapo C500 por RTSP/ONVIF y está hecha para sumar cámaras.
 
 Repo **público** (MIT). Todo corre local: sin nube, sin cuentas, sin telemetría. Nunca van al repo la IP, el usuario ni la contraseña de la cámara, ni imágenes reales: el modo demo y `propuesta/js/data.sample.js` son ficticios.
 
@@ -38,7 +38,7 @@ Repo **público** (MIT). Todo corre local: sin nube, sin cuentas, sin telemetrí
 | 1 · Verificación | Pruebas con la cámara real antes de escribir el motor (`docs/verification.md`). | Terminal |
 | 2 · Motor | .NET Worker + API mínima en `127.0.0.1:8352`; supervisa MediaMTX y FFmpeg. | Servicio de la sesión |
 | 3 · Web | `web/`: módulos ES sin framework ni compilación, servidos por el motor. | Navegador y ventana |
-| 4 · Escritorio | Tauri 2 (`desktop/src-tauri`): ventana, bandeja, avisos, inicio con la sesión. | `Velador.app` · `Velador.exe` |
+| 4 · Escritorio | Tauri 2 (`desktop/src-tauri`): ventana, bandeja, avisos, inicio con la sesión. | `Velador.app` · `Velador.exe` · `~/.local/bin/velador` |
 | 5+ | Sucesos, avisos, motor en un equipo siempre prendido, acceso remoto, más cámaras. | — |
 
 ### Correr el motor
@@ -62,6 +62,14 @@ scripts/install_macos.sh        # publica el motor, lo registra como servicio y 
 ```
 
 El motor queda como LaunchAgent `com.reydavidag.velador.engine`, con sus datos en `~/Library/Application Support/Velador` y las grabaciones en `~/Movies/Velador`. `Velador.Engine uninstall` lo quita sin borrar grabaciones. La app (`desktop/`) se revisa con `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test` dentro de `desktop/src-tauri`.
+
+### Instalar en Linux
+
+```bash
+scripts/install_linux.sh        # publica el motor, lo registra como servicio de usuario y deja ~/.local/bin/velador con su entrada en el menú
+```
+
+El motor queda como servicio de usuario de systemd `velador-engine.service`, con sus datos en `~/.config/Velador` y la contraseña en el llavero (`secret-tool`). Usa el FFmpeg del sistema. WebKitGTK no trae WebRTC: ahí el vivo va por `GET /api/cameras/{id}/live.mp4` (MP4 con un fragmento por cuadro, copiado sin recodificar) a MSE, sin sonido.
 
 ### Ver el prototipo
 

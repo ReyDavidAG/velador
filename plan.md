@@ -237,11 +237,13 @@ Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
 
 ### Linux · vivo sin WebRTC
 
-WebKitGTK de Arch/CachyOS viene sin WebRTC (`RTCPeerConnection` no existe aunque se active). Cuando falta, el vivo va por HLS:
+WebKitGTK de Arch/CachyOS viene sin WebRTC (`RTCPeerConnection` no existe aunque se active). Cuando falta, el vivo va por MP4 fragmentado a MSE:
 
-- MediaMTX sirve HLS sólo en `127.0.0.1` (puerto del motor + 6), sin audio (HLS no admite G.711).
-- El motor lo reenvía en `GET /api/cameras/{id}/hls/{stream}/{archivo}` con la misma sesión; el front sigue sin hablar con MediaMTX.
-- `live.js` usa HLS sólo si no hay `RTCPeerConnection`; macOS y Windows siguen por WebRTC. Cuesta del orden de un segundo más de retraso.
+- El motor abre un FFmpeg por cada vivo abierto, que copia el video (sin recodificar) del RTSP local de MediaMTX a MP4 con un fragmento por cuadro, y lo entrega en `GET /api/cameras/{id}/live.mp4?stream=main|minor` con la misma sesión. Al cerrar el vivo el FFmpeg se termina. El front sigue sin hablar con MediaMTX.
+- `live.js` mete esos fragmentos a `MediaSource` y se mantiene pegado al final: si se atrasa más de 0.8 s, salta. Con la ventana oculta más de un minuto, corta.
+- Se descartó el HLS de baja latencia de MediaMTX: con esta cámara los pedazos salían de 0.3 a 1 s y el retraso pasaba de 2 s.
+- Medido en esta PC en un navegador sin WebRTC contra el stream real: 1080p a 15 cps, entre 0.4 y 0.5 s detrás de lo recibido, sin errores. Falta medirlo en la ventana de Linux.
+- [ ] Sonido en ese vivo: el G.711 de la cámara no cabe en MP4 y pasarlo a AAC con FFmpeg falló al arrancar en las pruebas. macOS y Windows sí llevan sonido por WebRTC.
 
 ### 8 · Zona de vigilancia, seguimiento que sí sigue y caras más nítidas
 

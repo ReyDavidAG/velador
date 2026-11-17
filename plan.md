@@ -291,7 +291,7 @@ Aprobado por el usuario el 2026-11-15 sobre la propuesta de `propuesta_nocturna/
 - [x] Marco de monitor en el vivo, medidores de aguja con cobertura y disco, palanca para mover la cámara.
 - [x] Transiciones entre vistas, píldora que se desliza en el menú y apagón al cambiar de día a noche.
 - [x] Tipografías nuevas servidas localmente.
-- [ ] Reinstalar la app de escritorio para que tome los íconos nuevos.
+- [x] Ícono propio de Windows, sin el margen de macOS, para que llene la barra de tareas y la bandeja; puesto en la app instalada.
 - [ ] Revisar a ojo en WebKit (la ventana de macOS) y a ancho de teléfono.
 - No se trajo de la propuesta: el plano de la casa y la pared de varios monitores (hoy hay una sola cámara), el sonido del monitor y la pantalla de las 6 AM.
 

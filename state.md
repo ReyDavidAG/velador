@@ -119,7 +119,8 @@
 - Copiado a mano al motor instalado en esta PC (`%LOCALAPPDATA%\Velador\engine\web`); el motor no se reinició y la grabación no se tocó.
 - Revisado en capturas de Edge sin ventana contra el motor real: En vivo y Ronda de noche; En vivo, Personas, Continuidad, Cámaras y Ajustes de día. En esas capturas el video sale negro porque el navegador sin ventana no abre el vivo.
 - Sin revisar: Sucesos, Recortes, Bienvenida y el editor de zona con el tema nuevo; las animaciones y la palanca con una persona usándolas; WebKit; ancho de teléfono.
-- Íconos de escritorio y bandeja regenerados en `desktop/src-tauri/icons` desde `desktop/art`; la app instalada sigue con los anteriores hasta reinstalarla.
+- Íconos de escritorio y bandeja regenerados en `desktop/src-tauri/icons` desde `desktop/art`. Windows lleva los suyos (`app_windows.svg` › `icon.ico` y `tray_windows.png`): sin el margen de macOS, para que Sereno llene la barra de tareas y la bandeja.
+- 2026-11-17: en esta PC se cambió sólo `velador-desktop.exe` de la app instalada por el compilado con el ícono nuevo; el motor no se tocó. Falta verlo a ojo en la barra de tareas.
 - Las tipografías Schibsted Grotesk se quitaron; entran Bungee, Rubik, VT323 y Special Elite, bajadas de Google Fonts y servidas localmente.
 
 ## Repositorio

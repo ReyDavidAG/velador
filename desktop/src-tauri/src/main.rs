@@ -63,24 +63,7 @@ fn open_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             NewWindowResponse::Deny
         })
         .build()
-        .inspect(enable_webrtc)
 }
-
-#[cfg(target_os = "linux")]
-fn enable_webrtc(window: &WebviewWindow) {
-    let _ = window.with_webview(|webview| {
-        use webkit2gtk::{SettingsExt, WebViewExt};
-        let view = webview.inner();
-        if let Some(settings) = view.settings() {
-            settings.set_enable_webrtc(true);
-            settings.set_enable_media_stream(true);
-        }
-        view.reload();
-    });
-}
-
-#[cfg(not(target_os = "linux"))]
-fn enable_webrtc(_: &WebviewWindow) {}
 
 const LAUNCHER: &str = "com.reydavidag.velador.launcher";
 const HIDDEN: &str = "--hidden";
@@ -132,6 +115,9 @@ fn main() {
         };
     }
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            show_window(app)
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()

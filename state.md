@@ -52,7 +52,7 @@ Objetivo: que funcione igual que en Windows pero más fresco (allá la laptop se
 - KINGSTON es `sda1` (NTFS, 675 GB, 280 GB de datos personales) en el mismo SSD externo que este Linux. No montaba: `ntfs3` lo rechaza por «volume is dirty» (Windows no lo cerró limpio: inicio rápido o Velador grabando al apagar). No formatear. Arreglo: `ntfsfix -d` o `chkdsk` en Windows, apagar el inicio rápido de Windows y montarlo por `fstab` con `nofail` en `/run/media/davidag/KINGSTON`.
 
 - KINGSTON arreglado con `ntfsfix -d` y montado por `fstab` (`nofail`) en `/run/media/davidag/KINGSTON`. Falta apagar el inicio rápido en Windows (`powercfg /h off`).
-- El vivo se quedaba en «Conectando»: WebKitGTK trae WebRTC apagado. La ventana ahora lo prende en Linux (`set_enable_webrtc`) y recarga. Instalado; falta confirmar a ojo.
+- El vivo se quedaba en «Conectando»: el WebKitGTK de Arch/CachyOS está compilado sin WebRTC (`RTCPeerConnection` no existe aunque se active) y tampoco acepta HLS en `<video>`, pero sí MSE con H.264. Ahora, sin `RTCPeerConnection`, `live.js` lee el HLS de baja latencia de MediaMTX (pedazos de 200 ms) que el motor reenvía en `/api/cameras/{id}/hls/{stream}/{archivo}` y los mete a MSE. Probado en WebKitGTK contra la cámara: 1080p avanzando sin errores. Sin audio (HLS no admite G.711). Visto por el usuario en la ventana: **funciona pero con mucho retraso** frente a WebRTC; falta medirlo y reducirlo (pedir la lista con espera `_HLS_msn`/`_HLS_part` en vez de cada 300 ms, empezar en el pedazo más nuevo, o bajar el intervalo de cuadros clave de la cámara).
 
 **Siguiente, en orden:**
 3. Elegir el disco KINGSTON en Ajustes: el disco interno tiene ~18 GB libres y un día pesa 15–16 GB.

@@ -17,7 +17,116 @@ const received = async pc => {
 	return { bytes, shape }
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const settled = (buffer, act) =>
+	new Promise((resolve, reject) => {
+		buffer.addEventListener('updateend', resolve, { once: true })
+		buffer.addEventListener('error', reject, { once: true })
+		act()
+	})
+
+const watchHls = (cameraId, video, onState, stream, onStats) => {
+	const base = `/api/cameras/${cameraId}/hls/${stream}/`
+	let closed = false
+	let run = 0
+	let retry = 0
+	let lastTime = -1
+	let stalls = 0
+	let url = null
+
+	const get = async (path, as) => {
+		const response = await fetch(base + path, { credentials: 'same-origin', cache: 'no-store' })
+		if (!response.ok) throw new Error(`hls ${response.status}`)
+		return response[as]()
+	}
+
+	const release = () => {
+		video.removeAttribute('src')
+		video.load()
+		if (url) URL.revokeObjectURL(url)
+		url = null
+	}
+
+	async function play(mine) {
+		const index = await get('index.m3u8', 'text')
+		const variant = index.split('\n').find(line => line && !line.startsWith('#'))
+		const codecs = index.match(/CODECS="([^"]+)"/)?.[1] ?? 'avc1.640028'
+		const source = new MediaSource()
+		url = URL.createObjectURL(source)
+		video.src = url
+		await new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }))
+		const buffer = source.addSourceBuffer(`video/mp4; codecs="${codecs}"`)
+		const done = new Set()
+		let init = null
+		while (mine === run) {
+			const list = await get(variant, 'text')
+			const map = list.match(/#EXT-X-MAP:URI="([^"]+)"/)?.[1]
+			if (map && map !== init) {
+				const data = await get(map, 'arrayBuffer')
+				await settled(buffer, () => buffer.appendBuffer(data))
+				init = map
+			}
+			const parts = [...list.matchAll(/#EXT-X-PART:([^\n]*)/g)].map(m => ({ uri: m[1].match(/URI="([^"]+)"/)?.[1], key: m[1].includes('INDEPENDENT=YES') }))
+			let fresh = parts.filter(p => p.uri && !done.has(p.uri))
+			if (!done.size) fresh = fresh.slice(Math.max(0, fresh.findLastIndex(p => p.key)))
+			if (!done.size && !fresh[0]?.key) fresh = []
+			for (const part of fresh) {
+				const data = await get(part.uri, 'arrayBuffer')
+				if (mine !== run) return
+				await settled(buffer, () => buffer.appendBuffer(data))
+				done.add(part.uri)
+			}
+			if (done.size > 200) for (const old of [...done].slice(0, done.size - 100)) done.delete(old)
+			const end = buffer.buffered.length ? buffer.buffered.end(buffer.buffered.length - 1) : 0
+			if (end && end - video.currentTime > 2) video.currentTime = end - 0.3
+			if (end && video.paused) video.play().catch(() => {})
+			const start = buffer.buffered.length ? buffer.buffered.start(0) : 0
+			if (end - start > 30) await settled(buffer, () => buffer.remove(start, end - 10))
+			await sleep(300)
+		}
+	}
+
+	const begin = () => {
+		if (closed) return
+		const mine = ++run
+		play(mine).catch(() => mine === run && again())
+	}
+	const again = () => {
+		if (closed) return
+		run++
+		release()
+		onState('reconnecting')
+		clearTimeout(retry)
+		retry = setTimeout(begin, 2000)
+	}
+	const playing = () => onState('live')
+	video.addEventListener('playing', playing)
+	const pulse = setInterval(() => {
+		if (closed || video.paused) return
+		onStats({ width: 0, height: video.videoHeight, fps: 0, kbps: 0 })
+		stalls = video.currentTime > lastTime ? 0 : stalls + 1
+		lastTime = video.currentTime
+		if (stalls >= 3) {
+			stalls = 0
+			again()
+		}
+	}, 3000)
+
+	onState('connecting')
+	begin()
+	return () => {
+		closed = true
+		run++
+		clearTimeout(retry)
+		clearInterval(pulse)
+		video.removeEventListener('playing', playing)
+		release()
+	}
+}
+
 export const watchLive = (cameraId, video, onState, { stream = 'main', onStats = () => {} } = {}) => {
+	if (typeof RTCPeerConnection === 'undefined') return watchHls(cameraId, video, onState, stream, onStats)
 	let pc = null
 	let session = null
 	let retry = 0

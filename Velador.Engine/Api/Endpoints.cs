@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Globalization;
 using Velador.Core;
 using Velador.Engine.Continuity;
@@ -7,7 +8,7 @@ using Velador.Engine.Sqlite;
 
 namespace Velador.Engine.Api;
 
-public static class Endpoints
+public static partial class Endpoints
 {
 	public static void MapEngine(this WebApplication app)
 	{
@@ -22,6 +23,7 @@ public static class Endpoints
 		api.MapTapo();
 		api.MapVision();
 		api.MapPost("/cameras/{id}/live", (string id, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, stream, context, settings, media));
+		api.MapGet("/cameras/{id}/hls/{stream}/{file}", (string id, string stream, string file, HttpContext context, EngineSettings settings, MediaMtxClient media) => Hls(id, stream, file, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, stream, context, settings, media));
 	}
 
@@ -173,6 +175,24 @@ public static class Endpoints
 		if (upstream.Content.Headers.ContentType is { } contentType) context.Response.ContentType = contentType.ToString();
 		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
 	}
+
+	static async Task Hls(string id, string stream, string file, HttpContext context, EngineSettings settings, MediaMtxClient media)
+	{
+		if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || stream is not (Camera.MainStream or Camera.MinorStream) || !HlsFile().IsMatch(file))
+		{
+			context.Response.StatusCode = StatusCodes.Status404NotFound;
+			return;
+		}
+		using var request = new HttpRequestMessage(HttpMethod.Get, $"{media.Hls}/{camera.MediaPath(stream)}/{file}{context.Request.QueryString.Add("cookieCheck", "1")}");
+		using var upstream = await media.SendAsync(request, context.RequestAborted);
+		context.Response.StatusCode = (int)upstream.StatusCode;
+		context.Response.Headers.CacheControl = "no-store";
+		if (upstream.Content.Headers.ContentType is { } contentType) context.Response.ContentType = contentType.ToString();
+		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+	}
+
+	[GeneratedRegex(@"^[A-Za-z0-9_\-]+\.(m3u8|mp4)$")]
+	private static partial Regex HlsFile();
 
 	static bool TryZone(string? id, out TimeZoneInfo zone)
 	{

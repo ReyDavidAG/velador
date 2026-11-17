@@ -235,6 +235,14 @@ Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
 
 **Límites honestos.** Si alguien cruza más rápido de lo que gira el motor de la cámara, ningún programa lo alcanza; la predicción reduce cuánto se le pierde. Detectar en CPU cuesta unos puntos de un núcleo; se mide y se dice.
 
+### Linux · vivo sin WebRTC
+
+WebKitGTK de Arch/CachyOS viene sin WebRTC (`RTCPeerConnection` no existe aunque se active). Cuando falta, el vivo va por HLS:
+
+- MediaMTX sirve HLS sólo en `127.0.0.1` (puerto del motor + 6), sin audio (HLS no admite G.711).
+- El motor lo reenvía en `GET /api/cameras/{id}/hls/{stream}/{archivo}` con la misma sesión; el front sigue sin hablar con MediaMTX.
+- `live.js` usa HLS sólo si no hay `RTCPeerConnection`; macOS y Windows siguen por WebRTC. Cuesta del orden de un segundo más de retraso.
+
 ## Disco externo
 
 Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.

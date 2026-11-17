@@ -11,6 +11,7 @@ public sealed class MediaMtxClient(HttpClient http, MediaPorts ports)
 	string Api => $"http://127.0.0.1:{ports.Api}";
 	string Playback => $"http://127.0.0.1:{ports.Playback}";
 	public string WebRtc => $"http://127.0.0.1:{ports.WebRtc}";
+	public string Hls => $"http://127.0.0.1:{ports.Hls}";
 
 	public async Task<IReadOnlyList<MediaPathState>?> PathsAsync(CancellationToken ct)
 	{

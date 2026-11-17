@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using System.Diagnostics;
 using System.Globalization;
 using Velador.Core;
 using Velador.Engine.Continuity;
@@ -8,7 +8,7 @@ using Velador.Engine.Sqlite;
 
 namespace Velador.Engine.Api;
 
-public static partial class Endpoints
+public static class Endpoints
 {
 	public static void MapEngine(this WebApplication app)
 	{
@@ -24,7 +24,7 @@ public static partial class Endpoints
 		api.MapVision();
 		api.MapZone();
 		api.MapPost("/cameras/{id}/live", (string id, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, stream, context, settings, media));
-		api.MapGet("/cameras/{id}/hls/{stream}/{file}", (string id, string stream, string file, HttpContext context, EngineSettings settings, MediaMtxClient media) => Hls(id, stream, file, context, settings, media));
+		api.MapGet("/cameras/{id}/live.mp4", (string id, string? stream, HttpContext context, EngineSettings settings, MediaPorts ports) => LiveMp4(id, stream, context, settings, ports));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, stream, context, settings, media));
 	}
 
@@ -193,23 +193,53 @@ public static partial class Endpoints
 		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
 	}
 
-	static async Task Hls(string id, string stream, string file, HttpContext context, EngineSettings settings, MediaMtxClient media)
+	static async Task LiveMp4(string id, string? stream, HttpContext context, EngineSettings settings, MediaPorts ports)
 	{
-		if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || stream is not (Camera.MainStream or Camera.MinorStream) || !HlsFile().IsMatch(file))
+		var path = stream is null or Camera.MainStream ? Camera.MainStream : stream == Camera.MinorStream ? Camera.MinorStream : null;
+		if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || path is null)
 		{
 			context.Response.StatusCode = StatusCodes.Status404NotFound;
 			return;
 		}
-		using var request = new HttpRequestMessage(HttpMethod.Get, $"{media.Hls}/{camera.MediaPath(stream)}/{file}{context.Request.QueryString.Add("cookieCheck", "1")}");
-		using var upstream = await media.SendAsync(request, context.RequestAborted);
-		context.Response.StatusCode = (int)upstream.StatusCode;
-		context.Response.Headers.CacheControl = "no-store";
-		if (upstream.Content.Headers.ContentType is { } contentType) context.Response.ContentType = contentType.ToString();
-		await upstream.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+		if (EnginePaths.Ffmpeg() is not { } ffmpeg)
+		{
+			context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+			return;
+		}
+		var info = new ProcessStartInfo(ffmpeg, LiveMp4Arguments($"rtsp://127.0.0.1:{ports.Rtsp}/{camera.MediaPath(path)}")) { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true };
+		using var process = Process.Start(info)!;
+		try
+		{
+			context.Response.ContentType = "video/mp4";
+			context.Response.Headers.CacheControl = "no-store";
+			context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()?.DisableBuffering();
+			var buffer = new byte[64 * 1024];
+			var output = process.StandardOutput.BaseStream;
+			int read;
+			while ((read = await output.ReadAsync(buffer, context.RequestAborted)) > 0)
+			{
+				await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), context.RequestAborted);
+				await context.Response.Body.FlushAsync(context.RequestAborted);
+			}
+		}
+		catch (Exception e) when (e is OperationCanceledException or IOException) { }
+		finally
+		{
+			try
+			{
+				if (!process.HasExited) process.Kill(true);
+			}
+			catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+		}
 	}
 
-	[GeneratedRegex(@"^[A-Za-z0-9_\-]+\.(m3u8|mp4)$")]
-	private static partial Regex HlsFile();
+	public static string[] LiveMp4Arguments(string source) =>
+	[
+		"-hide_banner", "-loglevel", "quiet", "-nostdin",
+		"-fflags", "nobuffer", "-flags", "low_delay", "-rtsp_transport", "tcp", "-allowed_media_types", "video", "-analyzeduration", "0", "-probesize", "32",
+		"-i", source,
+		"-an", "-c:v", "copy", "-f", "mp4", "-movflags", "frag_every_frame+empty_moov+default_base_moof", "pipe:1",
+	];
 
 	static bool TryZone(string? id, out TimeZoneInfo zone)
 	{

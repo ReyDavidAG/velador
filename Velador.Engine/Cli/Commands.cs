@@ -101,7 +101,7 @@ public static class Commands
 		[Install]
 		WantedBy=default.target
 
-		""";
+		""".ReplaceLineEndings("\n");
 
 	static string UnitPath() => Path.Combine(Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } config ? config : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config"), "systemd", "user", Unit);
 

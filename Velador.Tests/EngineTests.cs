@@ -23,8 +23,7 @@ public class MediaMtxConfigTests
 		Assert.Contains("webrtcAddress: 127.0.0.1:8354", yaml);
 		Assert.Contains("webrtcLocalUDPAddress: 127.0.0.1:8355", yaml);
 		Assert.Contains("playbackAddress: 127.0.0.1:8356", yaml);
-		Assert.Contains("hlsAddress: 127.0.0.1:8358", yaml);
-		foreach (var off in new[] { "moq", "rtmp", "srt", "metrics", "pprof" }) Assert.Contains($"\n{off}: no\n", yaml);
+		foreach (var off in new[] { "moq", "rtmp", "hls", "srt", "metrics", "pprof" }) Assert.Contains($"\n{off}: no\n", yaml);
 		Assert.Contains("rtspAddress: 127.0.0.1:8357\nrtspTransports: [tcp]\nrtspEncryption: \"no\"\n", yaml);
 		Assert.DoesNotContain("Address: :", yaml);
 	}
@@ -565,6 +564,19 @@ public class TpapTests
 		Assert.Equal(plain, AesCcm128.Open(key, nonce, expected));
 		expected[5] ^= 1;
 		Assert.Null(AesCcm128.Open(key, nonce, expected));
+	}
+}
+
+public class LiveMp4Tests
+{
+	[Fact]
+	public void The_live_copy_never_reencodes_and_fragments_every_frame()
+	{
+		var args = Velador.Engine.Api.Endpoints.LiveMp4Arguments("rtsp://127.0.0.1:8357/entradamain");
+		Assert.Equal("copy", args[Array.IndexOf(args, "-c:v") + 1]);
+		Assert.Equal("rtsp://127.0.0.1:8357/entradamain", args[Array.IndexOf(args, "-i") + 1]);
+		Assert.Contains("frag_every_frame", args[Array.IndexOf(args, "-movflags") + 1]);
+		Assert.Equal("pipe:1", args[^1]);
 	}
 }
 

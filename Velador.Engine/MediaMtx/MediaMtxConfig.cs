@@ -15,12 +15,7 @@ public static class MediaMtxConfig
 		Line(yaml, "logDestinations: [stdout]");
 		Line(yaml, "api: yes");
 		Line(yaml, $"apiAddress: 127.0.0.1:{ports.Api}");
-		foreach (var off in new[] { "metrics", "pprof", "rtmp", "srt", "moq" }) Line(yaml, $"{off}: no");
-		Line(yaml, "hls: yes");
-		Line(yaml, $"hlsAddress: 127.0.0.1:{ports.Hls}");
-		Line(yaml, "hlsAllowOrigins: []");
-		Line(yaml, "hlsVariant: lowLatency");
-		Line(yaml, "hlsSegmentDuration: 1s");
+		foreach (var off in new[] { "metrics", "pprof", "rtmp", "hls", "srt", "moq" }) Line(yaml, $"{off}: no");
 		Line(yaml, "rtsp: yes");
 		Line(yaml, $"rtspAddress: 127.0.0.1:{ports.Rtsp}");
 		Line(yaml, "rtspTransports: [tcp]");

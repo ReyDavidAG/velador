@@ -111,7 +111,7 @@ public sealed class EnginePaths
 			?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velador"));
 }
 
-public sealed record MediaPorts(int Api, int WebRtc, int WebRtcUdp, int Playback, int Rtsp, int Hls)
+public sealed record MediaPorts(int Api, int WebRtc, int WebRtcUdp, int Playback, int Rtsp)
 {
-	public static MediaPorts From(int enginePort) => new(enginePort + 1, enginePort + 2, enginePort + 3, enginePort + 4, enginePort + 5, enginePort + 6);
+	public static MediaPorts From(int enginePort) => new(enginePort + 1, enginePort + 2, enginePort + 3, enginePort + 4, enginePort + 5);
 }

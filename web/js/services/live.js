@@ -17,8 +17,6 @@ const received = async pc => {
 	return { bytes, shape }
 }
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
 const settled = (buffer, act) =>
 	new Promise((resolve, reject) => {
 		buffer.addEventListener('updateend', resolve, { once: true })
@@ -26,69 +24,104 @@ const settled = (buffer, act) =>
 		act()
 	})
 
-const watchHls = (cameraId, video, onState, stream, onStats) => {
-	const base = `/api/cameras/${cameraId}/hls/${stream}/`
+const boxAt = (bytes, at) => {
+	if (bytes.length < at + 8) return null
+	const size = ((bytes[at] << 24) | (bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]) >>> 0
+	return { size, type: String.fromCharCode(bytes[at + 4], bytes[at + 5], bytes[at + 6], bytes[at + 7]) }
+}
+
+const codecOf = init => {
+	for (let i = 0; i + 8 < init.length; i++)
+		if (init[i] === 0x61 && init[i + 1] === 0x76 && init[i + 2] === 0x63 && init[i + 3] === 0x43)
+			return `avc1.${[init[i + 5], init[i + 6], init[i + 7]].map(b => b.toString(16).padStart(2, '0')).join('')}`
+	return 'avc1.640028'
+}
+
+const EDGE = 0.2
+const BEHIND = 0.8
+
+const watchMse = (cameraId, video, onState, stream, onStats) => {
 	let closed = false
 	let run = 0
 	let retry = 0
-	let lastTime = -1
-	let stalls = 0
+	let abort = null
 	let url = null
-
-	const get = async (path, as) => {
-		const response = await fetch(base + path, { credentials: 'same-origin', cache: 'no-store' })
-		if (!response.ok) throw new Error(`hls ${response.status}`)
-		return response[as]()
-	}
+	let bytes = 0
+	let frames = 0
+	let last = null
+	let stalls = 0
+	let hiddenAt = 0
+	let behind = BEHIND
+	let soughtAt = 0
 
 	const release = () => {
+		abort?.abort()
+		abort = null
 		video.removeAttribute('src')
 		video.load()
 		if (url) URL.revokeObjectURL(url)
 		url = null
+		last = null
+		stalls = 0
+	}
+
+	const chase = buffer => {
+		const ranges = buffer.buffered
+		if (!ranges.length) return null
+		const start = ranges.start(0)
+		const end = ranges.end(ranges.length - 1)
+		if (end - video.currentTime > behind || video.currentTime < start) {
+			const now = performance.now()
+			behind = now - soughtAt < 5000 ? Math.min(behind * 2, 6) : BEHIND
+			soughtAt = now
+			video.currentTime = Math.max(start, end - EDGE)
+		}
+		if (video.paused) video.play().catch(() => {})
+		return end - start > 20 ? [start, end - 8] : null
 	}
 
 	async function play(mine) {
-		const index = await get('index.m3u8', 'text')
-		const variant = index.split('\n').find(line => line && !line.startsWith('#'))
-		const codecs = index.match(/CODECS="([^"]+)"/)?.[1] ?? 'avc1.640028'
-		const source = new MediaSource()
-		url = URL.createObjectURL(source)
-		video.src = url
-		await new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }))
-		const buffer = source.addSourceBuffer(`video/mp4; codecs="${codecs}"`)
-		const done = new Set()
-		let init = null
-		while (mine === run) {
-			const list = await get(variant, 'text')
-			const map = list.match(/#EXT-X-MAP:URI="([^"]+)"/)?.[1]
-			if (map && map !== init) {
-				const data = await get(map, 'arrayBuffer')
-				await settled(buffer, () => buffer.appendBuffer(data))
-				init = map
+		const signal = (abort = new AbortController()).signal
+		const response = await fetch(`/api/cameras/${cameraId}/live.mp4?stream=${stream}`, { credentials: 'same-origin', cache: 'no-store', signal })
+		if (!response.ok || !response.body) throw new Error(`live ${response.status}`)
+		const reader = response.body.getReader()
+		let pending = new Uint8Array(0)
+		let buffer = null
+		for (;;) {
+			const { done, value } = await reader.read()
+			if (mine !== run) return
+			if (done) throw new Error('live ended')
+			bytes += value.length
+			const joined = new Uint8Array(pending.length + value.length)
+			joined.set(pending)
+			joined.set(value, pending.length)
+			let at = 0
+			let ready = 0
+			for (let box = boxAt(joined, at); box && box.size >= 8 && at + box.size <= joined.length; box = boxAt(joined, at)) {
+				at += box.size
+				if (box.type === 'moof') frames++
+				if (box.type === 'moov' || box.type === 'mdat') ready = at
 			}
-			const parts = [...list.matchAll(/#EXT-X-PART:([^\n]*)/g)].map(m => ({ uri: m[1].match(/URI="([^"]+)"/)?.[1], key: m[1].includes('INDEPENDENT=YES') }))
-			let fresh = parts.filter(p => p.uri && !done.has(p.uri))
-			if (!done.size) fresh = fresh.slice(Math.max(0, fresh.findLastIndex(p => p.key)))
-			if (!done.size && !fresh[0]?.key) fresh = []
-			for (const part of fresh) {
-				const data = await get(part.uri, 'arrayBuffer')
+			pending = joined.slice(ready)
+			if (!ready) continue
+			const chunk = joined.subarray(0, ready)
+			if (!buffer) {
+				const source = new MediaSource()
+				url = URL.createObjectURL(source)
+				video.src = url
+				await new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }))
 				if (mine !== run) return
-				await settled(buffer, () => buffer.appendBuffer(data))
-				done.add(part.uri)
+				buffer = source.addSourceBuffer(`video/mp4; codecs="${codecOf(chunk)}"`)
 			}
-			if (done.size > 200) for (const old of [...done].slice(0, done.size - 100)) done.delete(old)
-			const end = buffer.buffered.length ? buffer.buffered.end(buffer.buffered.length - 1) : 0
-			if (end && end - video.currentTime > 2) video.currentTime = end - 0.3
-			if (end && video.paused) video.play().catch(() => {})
-			const start = buffer.buffered.length ? buffer.buffered.start(0) : 0
-			if (end - start > 30) await settled(buffer, () => buffer.remove(start, end - 10))
-			await sleep(300)
+			await settled(buffer, () => buffer.appendBuffer(chunk))
+			if (mine !== run) return
+			const old = chase(buffer)
+			if (old) await settled(buffer, () => buffer.remove(old[0], old[1]))
 		}
 	}
 
 	const begin = () => {
-		if (closed) return
+		if (closed || document.visibilityState === 'hidden') return
 		const mine = ++run
 		play(mine).catch(() => mine === run && again())
 	}
@@ -102,16 +135,35 @@ const watchHls = (cameraId, video, onState, stream, onStats) => {
 	}
 	const playing = () => onState('live')
 	video.addEventListener('playing', playing)
+
 	const pulse = setInterval(() => {
-		if (closed || video.paused) return
-		onStats({ width: 0, height: video.videoHeight, fps: 0, kbps: 0 })
-		stalls = video.currentTime > lastTime ? 0 : stalls + 1
-		lastTime = video.currentTime
-		if (stalls >= 3) {
-			stalls = 0
-			again()
+		if (closed || !abort) return
+		const now = performance.now()
+		if (last) {
+			const seconds = (now - last.at) / 1000
+			onStats({ width: video.videoWidth, height: video.videoHeight, fps: (frames - last.frames) / seconds, kbps: ((bytes - last.bytes) * 8) / (seconds * 1000) })
+			stalls = bytes > last.bytes ? 0 : stalls + 1
 		}
+		last = { at: now, bytes, frames }
+		if (stalls >= 2) again()
 	}, 3000)
+
+	const onVisible = () => {
+		if (closed) return
+		if (document.visibilityState === 'hidden') {
+			hiddenAt = Date.now()
+			return
+		}
+		if (!abort) begin()
+	}
+	const idle = setInterval(() => {
+		if (!closed && abort && document.visibilityState === 'hidden' && Date.now() - hiddenAt > 60000) {
+			run++
+			release()
+			onState('connecting')
+		}
+	}, 10000)
+	document.addEventListener('visibilitychange', onVisible)
 
 	onState('connecting')
 	begin()
@@ -120,13 +172,15 @@ const watchHls = (cameraId, video, onState, stream, onStats) => {
 		run++
 		clearTimeout(retry)
 		clearInterval(pulse)
+		clearInterval(idle)
+		document.removeEventListener('visibilitychange', onVisible)
 		video.removeEventListener('playing', playing)
 		release()
 	}
 }
 
 export const watchLive = (cameraId, video, onState, { stream = 'main', onStats = () => {} } = {}) => {
-	if (typeof RTCPeerConnection === 'undefined') return watchHls(cameraId, video, onState, stream, onStats)
+	if (typeof RTCPeerConnection === 'undefined' && typeof MediaSource !== 'undefined') return watchMse(cameraId, video, onState, stream, onStats)
 	let pc = null
 	let session = null
 	let retry = 0

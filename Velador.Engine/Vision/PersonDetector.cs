@@ -106,8 +106,7 @@ public sealed class PersonDetector : IDisposable
 		return kept;
 	}
 
-	// The vision loops are fire-and-forget and may still be inside Run when the engine stops;
-	// freeing the native session under them crashed the engine with SIGSEGV on shutdown.
+	// The vision loops may still be inside Run when the engine stops; freeing the session under them crashed it.
 	public void Dispose()
 	{
 		lock (_lock)

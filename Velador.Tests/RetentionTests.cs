@@ -119,3 +119,15 @@ public class RetentionForecastTests
 		Assert.Equal("days", outlook.LimitedBy);
 	}
 }
+
+public class RecordingMountTests
+{
+	[Fact]
+	public void The_disk_is_the_deepest_mount_that_holds_the_recordings()
+	{
+		if (OperatingSystem.IsWindows()) return;
+		string[] mounts = ["/", "/run", "/run/media/user/KINGSTON", "/run/media/user/KING"];
+		Assert.Equal("/run/media/user/KINGSTON", Velador.Engine.MediaMtx.RecordingStore.MountOf("/run/media/user/KINGSTON/Velador", mounts));
+		Assert.Equal("/", Velador.Engine.MediaMtx.RecordingStore.MountOf("/home/user/Videos/Velador", mounts));
+	}
+}

@@ -21,7 +21,7 @@ for element in autoaudiosink qtdemux h264parse; do
 done
 has vah264dec || has avdec_h264 || has openh264dec || { echo "Falta un decodificador H.264 para el vivo y la Ronda (en Arch: gst-plugin-va o gst-libav)" >&2; exit 1; }
 has avdec_aac || has fdkaacdec || has faad || echo "Aviso: sin decodificador AAC la Ronda se oye en silencio (en Arch: gst-libav)" >&2
-ldconfig -p | grep -q -E 'libayatana-appindicator3|libappindicator3' || { echo "Falta la biblioteca del icono de la bandeja (en Arch: libayatana-appindicator)" >&2; exit 1; }
+ldconfig -p | grep -E 'libayatana-appindicator3|libappindicator3' >/dev/null || { echo "Falta la biblioteca del icono de la bandeja (en Arch: libayatana-appindicator)" >&2; exit 1; }
 if command -v ufw >/dev/null && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null && ! grep -q 'sport 3702' /etc/ufw/user.rules 2>/dev/null; then
 	echo "Aviso: ufw bloquea la búsqueda de cámaras. Permítela con: sudo ufw allow proto udp from 192.168.0.0/16 port 3702" >&2
 fi

@@ -78,6 +78,10 @@ public sealed class VisionService(
 	public const int GrayWidth = 320;
 	public const int GrayHeight = 180;
 	const long IdleFrameMs = 330;
+	const long IdleSweepMs = 3000;
+	const long FollowSweepMs = 1000;
+	const int ChangeLevel = 30;
+	const double ChangeFraction = 0.001;
 	const long ActiveForMs = 5000;
 	const long PersonGoneMs = 4000;
 	const long MinSightingMs = 800;
@@ -407,18 +411,21 @@ public sealed class VisionService(
 		long lastDetectMs = 0, lastPersonMs = 0, fpsWindowMs = Now;
 		var fpsCount = 0;
 		var personOpen = false;
+		byte[]? lastLuma = null;
+		long lastReferenceMs = 0;
 		while (!ct.IsCancellationRequested && settings.DetectPeople)
 		{
 			using var lease = await reader.NextAsync(ct);
 			if (lease is null) return;
 			var now = lease.CapturedMs;
-			var active = IsFollowing(v.Camera.Id) || v.Busy || now - lastPersonMs < ActiveForMs;
+			var following = IsFollowing(v.Camera.Id);
+			var active = v.Busy || now - lastPersonMs < ActiveForMs || following && (v.Coasting || now - v.LastTargetMs <= ReturnAfterMs + IdleFrameMs);
 			if (v.Snap is { } snap)
 			{
 				v.Snap = null;
 				snap.TrySetResult(Png.FromBgr(lease.Frame.Scaled(SnapWidth, SnapHeight), SnapWidth, SnapHeight));
 			}
-			if (v.Busy || IsFollowing(v.Camera.Id))
+			if (v.Busy)
 			{
 				v.LastGray = lease.Frame.Gray(GrayWidth, GrayHeight);
 				v.LastGrayMs = now;
@@ -426,7 +433,15 @@ public sealed class VisionService(
 				v.NextFrame = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 				tcs.TrySetResult(true);
 			}
-			if (!active && now - lastDetectMs < IdleFrameMs) continue;
+			if (active) lastLuma = null;
+			else
+			{
+				// Each frame is compared with one ~330 ms older. Measured at night: a still scene stays under 0.06 % of blocks past level 30; a person or a headlight passes 0.1 %.
+				var luma = SceneChange.Shrink(lease.Luma, FrameReader.Width, FrameReader.Height, FrameReader.Width / GrayWidth);
+				var changed = lastLuma is not null && SceneChange.Changed(lastLuma, luma, GrayWidth, BandTop, BandRows, ChangeLevel) >= ChangeFraction;
+				if (lastLuma is null || now - lastReferenceMs >= IdleFrameMs) (lastLuma, lastReferenceMs) = (luma, now);
+				if (!changed && now - lastDetectMs < (following ? FollowSweepMs : IdleSweepMs)) continue;
+			}
 			lastDetectMs = now;
 			var frame = lease.Frame;
 			v.Status = "running";

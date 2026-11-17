@@ -402,3 +402,31 @@ public static class Yuv
 
 	static byte Clamp(int v) => (byte)(v < 0 ? 0 : v > 255 ? 255 : v);
 }
+
+public static class SceneChange
+{
+	public static byte[] Shrink(ReadOnlySpan<byte> luma, int width, int height, int block)
+	{
+		var w = width / block;
+		var h = height / block;
+		var sums = new int[w * h];
+		for (var y = 0; y < h * block; y++)
+		{
+			var row = y / block * w;
+			var source = luma.Slice(y * width, w * block);
+			for (var x = 0; x < source.Length; x++) sums[row + x / block] += source[x];
+		}
+		var small = new byte[w * h];
+		for (var i = 0; i < small.Length; i++) small[i] = (byte)(sums[i] / (block * block));
+		return small;
+	}
+
+	public static double Changed(byte[] before, byte[] after, int width, int firstRow, int rows, int level)
+	{
+		var changed = 0;
+		var end = (firstRow + rows) * width;
+		for (var i = firstRow * width; i < end; i++)
+			if (Math.Abs(before[i] - after[i]) > level) changed++;
+		return (double)changed / (rows * width);
+	}
+}

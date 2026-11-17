@@ -197,3 +197,22 @@ public class DetectorShutdownTests
 		await loop;
 	}
 }
+
+public class SceneChangeTests
+{
+	[Fact]
+	public void Only_changes_inside_the_band_and_past_the_level_count()
+	{
+		var still = new byte[8 * 8];
+		Array.Fill(still, (byte)100);
+		var small = SceneChange.Shrink(still, 8, 8, 2);
+		Assert.Equal(16, small.Length);
+		Assert.All(small, b => Assert.Equal(100, b));
+
+		var moved = (byte[])small.Clone();
+		moved[0] = 255;
+		moved[5] = 120;
+		moved[9] = 200;
+		Assert.Equal(1 / 8.0, SceneChange.Changed(small, moved, 4, 1, 2, 30));
+	}
+}

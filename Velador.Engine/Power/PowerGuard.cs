@@ -12,7 +12,7 @@ public interface IPowerGuard : IDisposable
 public static class PowerGuards
 {
 	public static IPowerGuard ForThisPlatform() =>
-		OperatingSystem.IsMacOS() ? new MacPowerGuard() : OperatingSystem.IsWindows() ? new WindowsPowerGuard() : new NoPowerGuard();
+		OperatingSystem.IsMacOS() ? new MacPowerGuard() : OperatingSystem.IsWindows() ? new WindowsPowerGuard() : OperatingSystem.IsLinux() ? new LinuxPowerGuard() : new NoPowerGuard();
 }
 
 public sealed class NoPowerGuard : IPowerGuard
@@ -23,7 +23,12 @@ public sealed class NoPowerGuard : IPowerGuard
 }
 
 [SupportedOSPlatform("macos")]
-public sealed class MacPowerGuard : IPowerGuard
+public sealed class MacPowerGuard() : ChildPowerGuard("/usr/bin/caffeinate", ["-i", "-w", Environment.ProcessId.ToString()]);
+
+[SupportedOSPlatform("linux")]
+public sealed class LinuxPowerGuard() : ChildPowerGuard("systemd-inhibit", ["--what=sleep", "--who=Velador", "--why=Grabando la cámara", "--mode=block", "tail", $"--pid={Environment.ProcessId}", "-f", "/dev/null"]);
+
+public abstract class ChildPowerGuard(string program, string[] args) : IPowerGuard
 {
 	Process? _caffeinate;
 
@@ -35,7 +40,11 @@ public sealed class MacPowerGuard : IPowerGuard
 			Dispose();
 			return;
 		}
-		_caffeinate = Process.Start(new ProcessStartInfo("/usr/bin/caffeinate", ["-i", "-w", Environment.ProcessId.ToString()]) { UseShellExecute = false });
+		try
+		{
+			_caffeinate = Process.Start(new ProcessStartInfo(program, args) { UseShellExecute = false });
+		}
+		catch (System.ComponentModel.Win32Exception) { }
 	}
 
 	public void Dispose()

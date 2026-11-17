@@ -1,9 +1,10 @@
 # Estado · Velador
 
-Última actualización: 2026-11-13
+Última actualización: 2026-11-16
 
 ## Dónde vamos
 
+- **Linux (rama `feature/linux`, 2026-11-16, laptop CachyOS + KDE Wayland, i7-12650H + RTX 4060):** motor portado y probado sin cámara; falta compilar la ventana, instalar y medir con la cámara. Detalle en «Linux» abajo.
 - **0.1.0 para macOS: terminada e instalada en esta Mac.** Motor, interfaz completa y app de escritorio.
 - **Windows: instalado y grabando en la PC con la cámara (2026-11-13).** Compila ahí (96 pruebas del motor, 15 de la app). Corregidas las consolas que se abrían solas y la reinstalación encima. Falta recorrer Ronda con sonido, recortes, disco externo y controles Tapo en WebView2. Detalle en `docs/windows.md`.
 - **Mover la cámara manteniendo presionado** (botón o flecha): avanza paso a paso sin soltar. En pantalla completa hay control de movimiento sobre el video, doble clic entra y sale, y los controles y el cursor se esconden tras 3 s quietos. Probado en Edge (mismo motor que WebView2) con la cámara real.
@@ -23,6 +24,41 @@
 - **Hasta 3 redes por cámara: hecho, sin probar el cambio físico de red.** Cada red donde Velador ve la cámara queda guardada (se reconoce por el router). Al cambiar de red usa la dirección recordada, y si no hay, la busca por número de serie. Se ven y se olvidan en Cámaras. En macOS el nombre sale como «Red 192.168.1.1» porque el sistema no entrega el nombre del WiFi a un servicio.
 - **Luz blanca, modo de noche, voltear la imagen y WiFi de la cámara: hecho, por el protocolo privado de Tapo.** El motor lo habla por sí mismo (SPAKE2+ sobre P-256 y AES-CCM, portado de `pytapo` y verificado con sus vectores; el protocolo anterior queda como respaldo). Probado con la cámara real: leer estado, encender y apagar la luz, y listar redes. **Sin probar:** cambiar el modo de noche, voltear la imagen y, sobre todo, cambiar la cámara de red (no se ejecutó para no dejarla desconectada). Usa la contraseña de la cuenta Tapo; si no se da aparte, prueba con la de la cuenta de cámara.
 - **Cámara con IP cambiante: hecho.** El motor la reencuentra por su número de serie (probado apuntándolo a una dirección equivocada).
+
+## Linux (2026-11-16)
+
+Objetivo: que funcione igual que en Windows pero más fresco (allá la laptop se calentaba).
+
+**Hecho (sin commit todavía, en `feature/linux`):**
+- Contraseña en el llavero de KDE con `secret-tool` (`LinuxSecretStore`); probado guardar y leer.
+- «No dormir» con `systemd-inhibit --what=sleep` atado al PID del motor (`LinuxPowerGuard`, comparte base con el de macOS).
+- `Velador.Engine install|uninstall` en Linux: servicio de usuario `~/.config/systemd/user/velador-engine.service` con `Restart=always`, `Nice=5`, `CPUWeight=50` y, si la CPU es híbrida, `AllowedCPUs=` con los núcleos eficientes (`/sys/devices/cpu_atom/cpus`; en esta laptop 12-15). MediaMTX y FFmpeg heredan esos núcleos.
+- Discos externos en `/run/media/<usuario>/<disco>` y `/media/<usuario>/<disco>`; red con `ip neigh` y nombre del WiFi con `nmcli`; «mostrar recorte» abre la carpeta con `xdg-open`.
+- Ventana (Rust): datos en `~/.config/Velador` (igual que el motor), arranque con `systemctl --user start`, y `GST_PLUGIN_FEATURE_RANK` para decodificar el vivo con la Intel (`vah264dec`) y no despertar la NVIDIA.
+- `scripts/fetch_binaries.sh` usa `sha256sum` si no hay `shasum`. Nuevo `scripts/install_linux.sh`: publica el motor en `~/.local/share/velador/engine/<versión>`, lo registra, compila la ventana con `tauri build --no-bundle` y deja `~/.local/bin/velador` + entrada en el menú.
+- .NET 10 SDK en `~/.dotnet10` (10.0.404). MediaMTX y modelos ya bajados en `tools/`. `webkit2gtk-4.1` instalado.
+- 126 pruebas del motor en verde en Linux. Motor arrancado a mano en una carpeta temporal (puerto 18352): token, `summary` y la interfaz responden.
+- Detección de personas en Linux va en CPU (ONNX Runtime, 2 hilos); no se usa CUDA a propósito para no prender la NVIDIA.
+
+- Tras reiniciar: ventana compilada en Linux (`fmt`, `clippy -D warnings` limpios, 16 pruebas). `scripts/install_linux.sh` corrió completo: servicio activo, fijado a núcleos 12-15, ~200 MB de RSS; la ventana abre.
+
+- Problemas al dar de alta (2026-11-16): (a) la ventana se cayó: WebKitGTK aborta en `createAudioSink` si falta `gst-plugins-good` (no hay `autoaudiosink`); (b) la búsqueda no encontró la cámara: la cámara sí responde desde el puerto 3702 pero `ufw` (entrada DROP) tira la respuesta; (c) `401` en RTSP: la cámara rechaza usuario y contraseña también probados directo con `ffprobe`, así que no es el llavero. Probablemente se usó la cuenta Tapo en vez de la cuenta de cámara. `install_linux.sh` ahora revisa los elementos GStreamer y avisa de ufw.
+
+- Cámara dada de alta y grabando los dos streams en Linux (2026-11-16, 19:52). Causas del atasco, en orden: (1) la primera cuenta era la de Tapo y los reintentos con `401` bloquearon el RTSP hasta reiniciar la cámara; (2) `stream1` cerraba la conexión tras `PLAY` porque la Mac seguía grabando 24/7 con su motor (la C500 admite 2 sesiones de alta calidad). Apagada la Mac, entró.
+- Corregido en el vigía: con la fuente desconectada y MediaMTX vivo ya no reinicia MediaMTX cada 30 s (cortaba el stream ligero y dejaba sesiones colgadas en la cámara; MediaMTX ya reintenta solo). Prueba nueva; 127 en verde.
+- Pendiente: el motor no alimenta `CredentialsRejected`, así que un `401` sigue reintentando cada 5 s y puede bloquear la cámara. Y decidir qué equipo graba 24/7: tres motores a la vez no caben en esta cámara.
+
+- Reinstalar sobre la misma versión dejó el motor sin `libe_sqlite3.so` ni ONNX Runtime (la publicación incremental no los volvió a copiar) y se caía al arrancar. `install_linux.sh` ahora borra la carpeta de la versión antes de publicar.
+- KINGSTON es `sda1` (NTFS, 675 GB, 280 GB de datos personales) en el mismo SSD externo que este Linux. No montaba: `ntfs3` lo rechaza por «volume is dirty» (Windows no lo cerró limpio: inicio rápido o Velador grabando al apagar). No formatear. Arreglo: `ntfsfix -d` o `chkdsk` en Windows, apagar el inicio rápido de Windows y montarlo por `fstab` con `nofail` en `/run/media/davidag/KINGSTON`.
+
+- KINGSTON arreglado con `ntfsfix -d` y montado por `fstab` (`nofail`) en `/run/media/davidag/KINGSTON`. Falta apagar el inicio rápido en Windows (`powercfg /h off`).
+- El vivo se quedaba en «Conectando»: WebKitGTK trae WebRTC apagado. La ventana ahora lo prende en Linux (`set_enable_webrtc`) y recarga. Instalado; falta confirmar a ojo.
+
+**Siguiente, en orden:**
+3. Elegir el disco KINGSTON en Ajustes: el disco interno tiene ~18 GB libres y un día pesa 15–16 GB.
+4. Medir CPU/temperatura con vivo abierto, oculto y detectando (motor, MediaMTX, FFmpeg, WebKitWebProcess) y comparar con lo de Windows; confirmar con `intel_gpu_top`/`nvidia-smi` que el vivo usa la Intel y la NVIDIA queda dormida.
+5. Revisar bandeja (appindicator), avisos y arranque con la sesión tras reiniciar.
+6. Commit en `feature/linux`, sumar Linux al CI y a `CLAUDE.md`.
 
 ## Qué falta
 

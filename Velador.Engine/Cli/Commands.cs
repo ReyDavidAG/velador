@@ -83,6 +83,49 @@ public static class Commands
 		return 0;
 	}
 
+	public const string Unit = "velador-engine.service";
+
+	public static string UnitFile(string program, string? efficientCpus) => $"""
+		[Unit]
+		Description=Velador: motor de grabación
+		After=network-online.target
+
+		[Service]
+		ExecStart="{program}"
+		Restart=always
+		RestartSec=3
+		Nice=5
+		CPUWeight=50
+		{(string.IsNullOrWhiteSpace(efficientCpus) ? "" : $"AllowedCPUs={efficientCpus.Trim()}")}
+
+		[Install]
+		WantedBy=default.target
+
+		""";
+
+	static string UnitPath() => Path.Combine(Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } config ? config : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config"), "systemd", "user", Unit);
+
+	static int InstallLinux()
+	{
+		const string atom = "/sys/devices/cpu_atom/cpus";
+		var unit = UnitPath();
+		Directory.CreateDirectory(Path.GetDirectoryName(unit)!);
+		File.WriteAllText(unit, UnitFile(Environment.ProcessPath!, File.Exists(atom) ? File.ReadAllText(atom) : null));
+		Tool("systemctl", "--user", "daemon-reload");
+		if (Tool("systemctl", "--user", "enable", Unit) != 0 || Tool("systemctl", "--user", "restart", Unit) != 0) return Fail("systemctl no pudo cargar el servicio.");
+		Console.WriteLine($"Motor instalado: {Environment.ProcessPath}");
+		return 0;
+	}
+
+	static int UninstallLinux()
+	{
+		Tool("systemctl", "--user", "disable", "--now", Unit);
+		File.Delete(UnitPath());
+		Tool("systemctl", "--user", "daemon-reload");
+		Console.WriteLine("Motor desinstalado. Las grabaciones y los ajustes no se tocaron.");
+		return 0;
+	}
+
 	static int Tool(string name, params string[] args)
 	{
 		try
@@ -101,7 +144,8 @@ public static class Commands
 	static int Install(EnginePaths paths)
 	{
 		if (OperatingSystem.IsWindows()) return InstallWindows(paths);
-		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS y en Windows.");
+		if (OperatingSystem.IsLinux()) return InstallLinux();
+		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS, Windows y Linux.");
 		var program = Environment.ProcessPath!;
 		var log = Path.Combine(paths.Home, "engine.log");
 		var plist = PlistPath();
@@ -132,7 +176,8 @@ public static class Commands
 	static int Uninstall()
 	{
 		if (OperatingSystem.IsWindows()) return UninstallWindows();
-		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS y en Windows.");
+		if (OperatingSystem.IsLinux()) return UninstallLinux();
+		if (!OperatingSystem.IsMacOS()) return Fail("El servicio se instala en macOS, Windows y Linux.");
 		Launchctl("bootout", $"gui/{Uid()}/{Label}");
 		File.Delete(PlistPath());
 		Console.WriteLine("Motor desinstalado. Las grabaciones y los ajustes no se tocaron.");

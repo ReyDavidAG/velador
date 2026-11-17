@@ -4436,6 +4436,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-window-state",
  "ureq",
+ "webkit2gtk",
 ]
 
 [[package]]

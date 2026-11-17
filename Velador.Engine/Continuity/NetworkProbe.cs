@@ -21,10 +21,11 @@ public sealed class SystemNetworkProbe : INetworkProbe
 			.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && !a.Equals(System.Net.IPAddress.Any))
 			?.ToString();
 		if (gateway is null) return null;
-		var mac = KnownNetworks.MacFrom(Run("arp", OperatingSystem.IsWindows() ? ["-a", gateway] : ["-n", gateway]), gateway);
+		var mac = KnownNetworks.MacFrom(OperatingSystem.IsLinux() ? Run("ip", ["neigh", "show", gateway]) : Run("arp", OperatingSystem.IsWindows() ? ["-a", gateway] : ["-n", gateway]), gateway);
 		var ssid = OperatingSystem.IsWindows()
 			? KnownNetworks.SsidFrom(Run("netsh", ["wlan", "show", "interfaces"]))
-			: OperatingSystem.IsMacOS() ? Ssid() : null;
+			: OperatingSystem.IsMacOS() ? Ssid()
+			: Run("nmcli", ["-t", "-f", "active,ssid", "dev", "wifi"]).Split('\n').FirstOrDefault(l => l.StartsWith("yes:", StringComparison.Ordinal))?[4..] is { Length: > 0 } wifi ? wifi : null;
 		return new NetworkNow(mac ?? $"gw:{gateway}", ssid ?? $"Red {gateway}");
 	}
 

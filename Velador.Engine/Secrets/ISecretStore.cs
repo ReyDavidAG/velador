@@ -16,7 +16,7 @@ public static class SecretStores
 	public const string Service = "Velador";
 
 	public static ISecretStore ForThisPlatform() =>
-		new EnvironmentFirst(OperatingSystem.IsWindows() ? new WindowsCredentialStore() : OperatingSystem.IsMacOS() ? new KeychainSecretStore() : new MemorySecretStore());
+		new EnvironmentFirst(OperatingSystem.IsWindows() ? new WindowsCredentialStore() : OperatingSystem.IsMacOS() ? new KeychainSecretStore() : OperatingSystem.IsLinux() ? new LinuxSecretStore() : new MemorySecretStore());
 }
 
 public sealed class MemorySecretStore : ISecretStore
@@ -63,6 +63,33 @@ public sealed class KeychainSecretStore : ISecretStore
 	}
 
 	static string Quote(string value) => $"\"{value.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+}
+
+[SupportedOSPlatform("linux")]
+public sealed class LinuxSecretStore : ISecretStore
+{
+	public string? Get(string cameraId)
+	{
+		var (code, output) = Run(["lookup", "service", SecretStores.Service, "account", cameraId], null);
+		return code == 0 && output.Length > 0 ? output.TrimEnd('\n') : null;
+	}
+
+	public void Set(string cameraId, string secret)
+	{
+		if (Run(["store", "--label", $"{SecretStores.Service} {cameraId}", "service", SecretStores.Service, "account", cameraId], secret).Code != 0)
+			throw new InvalidOperationException("The secret service rejected the secret");
+	}
+
+	static (int Code, string Output) Run(string[] args, string? input)
+	{
+		var info = new ProcessStartInfo("secret-tool", args) { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+		using var process = Process.Start(info)!;
+		if (input is not null) process.StandardInput.Write(input);
+		process.StandardInput.Close();
+		var output = process.StandardOutput.ReadToEnd();
+		process.WaitForExit();
+		return (process.ExitCode, output);
+	}
 }
 
 [SupportedOSPlatform("windows")]

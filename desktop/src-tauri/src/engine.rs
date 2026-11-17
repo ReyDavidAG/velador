@@ -64,7 +64,14 @@ pub fn state_dir() -> PathBuf {
             .unwrap_or_else(|| home().join("AppData").join("Roaming"))
             .join("Velador");
     }
-    home().join("Library/Application Support/Velador")
+    if cfg!(target_os = "macos") {
+        return home().join("Library/Application Support/Velador");
+    }
+    std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|d| !d.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".config"))
+        .join("Velador")
 }
 
 pub fn read_token(dir: &Path) -> Result<String, String> {
@@ -177,6 +184,14 @@ pub fn start(resources: Option<&Path>) -> Result<(), String> {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn start(resources: Option<&Path>) -> Result<(), String> {
+    let ran = platform::quiet("systemctl")
+        .args(["--user", "start", "velador-engine.service"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if ran {
+        return Ok(());
+    }
     install_bundled(resources)
 }
 

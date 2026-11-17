@@ -328,6 +328,9 @@ public class StorageTests : IDisposable
 	[InlineData("/Volumes/KINGSTON/Velador", "/Volumes/KINGSTON")]
 	[InlineData("/Volumes/Mi Disco/a/b", "/Volumes/Mi Disco")]
 	[InlineData("/Users/yo/Movies/Velador", null)]
+	[InlineData("/run/media/yo/KINGSTON/Velador", "/run/media/yo/KINGSTON")]
+	[InlineData("/media/yo/Mi Disco/a", "/media/yo/Mi Disco")]
+	[InlineData("/home/yo/Videos/Velador", null)]
 	public void The_mount_point_of_an_external_path_is_its_volume(string path, string? mount)
 	{
 		if (OperatingSystem.IsWindows()) return;
@@ -561,5 +564,16 @@ public class TpapTests
 		Assert.Equal(plain, AesCcm128.Open(key, nonce, expected));
 		expected[5] ^= 1;
 		Assert.Null(AesCcm128.Open(key, nonce, expected));
+	}
+}
+
+public class LinuxServiceTests
+{
+	[Fact]
+	public void The_unit_pins_to_efficient_cores_only_when_there_are_some()
+	{
+		Assert.Contains("AllowedCPUs=12-15\n", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", "12-15\n"));
+		Assert.DoesNotContain("AllowedCPUs", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", null));
+		Assert.Contains("ExecStart=\"/opt/v/Velador.Engine\"", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", null));
 	}
 }

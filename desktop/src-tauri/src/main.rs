@@ -63,7 +63,24 @@ fn open_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             NewWindowResponse::Deny
         })
         .build()
+        .inspect(enable_webrtc)
 }
+
+#[cfg(target_os = "linux")]
+fn enable_webrtc(window: &WebviewWindow) {
+    let _ = window.with_webview(|webview| {
+        use webkit2gtk::{SettingsExt, WebViewExt};
+        let view = webview.inner();
+        if let Some(settings) = view.settings() {
+            settings.set_enable_webrtc(true);
+            settings.set_enable_media_stream(true);
+        }
+        view.reload();
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn enable_webrtc(_: &WebviewWindow) {}
 
 const LAUNCHER: &str = "com.reydavidag.velador.launcher";
 const HIDDEN: &str = "--hidden";
@@ -104,6 +121,16 @@ fn hide_window(window: &tauri::Window) {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("GST_PLUGIN_FEATURE_RANK").is_none() {
+        // Decode the live view on the integrated GPU and keep the discrete one asleep.
+        unsafe {
+            std::env::set_var(
+                "GST_PLUGIN_FEATURE_RANK",
+                "vah264dec:MAX,vah265dec:MAX,nvh264dec:NONE,nvh265dec:NONE",
+            )
+        };
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(

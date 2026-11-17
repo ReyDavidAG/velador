@@ -305,6 +305,18 @@ Aprobado por el usuario el 2026-11-15 sobre la propuesta de `propuesta_nocturna/
 - [ ] Revisar a ojo en WebKit (la ventana de macOS) y a ancho de teléfono.
 - No se trajo de la propuesta: el plano de la casa y la pared de varios monitores (hoy hay una sola cámara), el sonido del monitor y la pantalla de las 6 AM.
 
+### 10 · Detección fresca en Linux
+
+Propuesto el 2026-11-16, **pendiente de aprobación**. Objetivo: que la laptop no se caliente. Medido hoy con nadie a la vista: la detección corre en CPU (núcleos eficientes 12-15) y cuesta ~190 ms por cuadro; el motor gasta ~47 % de un núcleo a 2.5 cps, contra ~5 % en Windows, donde la inferencia va en la GPU. Con alguien a la vista pide 10 cps y en CPU no llega.
+
+En orden: cada paso se mide antes de pasar al siguiente, y si con uno ya se cumple el objetivo, los demás no se hacen.
+
+- [ ] **1. No inferir cuando nada cambia.** Sin nadie a la vista, YOLOX sólo corre si hay cambio en la imagen gris de 320×180 que ya se calcula (diferencia contra el cuadro anterior, fuera de la franja de la hora y del logo), y además una vez cada 3 s por si alguien entró muy despacio. Con alguien a la vista o siguiendo, sin cambios. No agrega dependencias y sirve igual en Windows y macOS. Meta: motor ≤ 10 % de un núcleo en reposo. Riesgo: de noche el ruido del infrarrojo y los insectos frente a la luz cuentan como cambio; el umbral se calibra con la grabación de esta noche.
+- [ ] **2. Inferencia en la Intel integrada (UHD de la i7-12650H) con OpenVINO**, sólo si con el paso 1 no se llega a 10 cps con alguien a la vista o el motor pasa de ~25 % mientras sigue. El paquete de ONNX Runtime con OpenVINO sólo trae binarios de Windows; en Linux se usaría el runtime de OpenVINO que publica Intel, bajado con suma verificada por `scripts/fetch_binaries.sh` igual que MediaMTX, y llamado desde una implementación de `PersonDetector` sobre la API C de OpenVINO. Requiere el paquete `intel-compute-runtime` del sistema; si falta o la GPU no arranca, sigue en CPU como hoy. Se mide el consumo de la Intel con `intel_gpu_top`, porque también decodifica el vivo.
+- [ ] **3. Modelo cuantizado (int8) en CPU**, como alternativa al paso 2 si OpenVINO resulta frágil: se mide primero que no pierda personas de noche.
+- **NVIDIA (RTX 4060): no se usa para la detección.** Despertarla para inferir 3–10 cuadros por segundo la deja encendida todo el tiempo (varios watts constantes contra ~2 W dormida), es lo que más calienta y CUDA pesa más de 1 GB. Se queda dormida a propósito, igual que para el vivo.
+- Medición de cada paso: CPU de motor, FFmpeg y MediaMTX, temperatura del paquete, cuadros por segundo con alguien a la vista, y que la NVIDIA siga en reposo.
+
 ## Disco externo
 
 Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.

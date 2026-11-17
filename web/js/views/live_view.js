@@ -1,4 +1,6 @@
+import { setAlert } from '../components/mascot.js'
 import { roundHtml, setCursor } from '../components/round_timeline.js'
+import { mountZoneMap, zoneMapHtml } from '../components/zone_map.js'
 import { attachZoom, zoomClick, zoomControls, zoomLabel } from '../components/zoom.js'
 import { api } from '../services/api.js'
 import { watchLive } from '../services/live.js'
@@ -13,8 +15,10 @@ const PAD_KEYS = `<button type="button" data-ptz="0,1" class="u" title="Arriba">
 	<button type="button" data-ptz="1,0" class="r" title="Derecha">${I.right}<span class="sr-only">Derecha</span></button>
 	<button type="button" data-ptz="0,-1" class="d" title="Abajo">${I.down}<span class="sr-only">Abajo</span></button>`
 const PAD = `<header class="card-head"><h2>Mover la cámara</h2></header>
-	<div class="ptz"><div class="pad">${PAD_KEYS}</div><p class="muted-s">Un toque gira un poco; mantenlo presionado para seguir girando. También con las flechas del teclado.</p></div>`
+	<div class="ptz"><div class="pad joy" data-joy>${PAD_KEYS.replace('class="pad-c"', 'class="pad-c" data-ball')}</div><p class="muted-s">Arrastra la palanca o toca una flecha; mantenla para seguir girando. También con las flechas del teclado.</p></div>`
+const dial = (key, label, color) => `<div class="dial" data-dial="${key}" style="--c:${color}"><svg viewBox="0 0 120 74" aria-hidden="true"><path class="dial-arc" d="M14 64A46 46 0 0 1 106 64"/><path class="dial-val" pathLength="100" d="M14 64A46 46 0 0 1 106 64"/><line class="dial-needle" x1="60" y1="64" x2="60" y2="26"/><circle cx="60" cy="64" r="5"/></svg><span>${label}</span><b>—</b></div>`
 const STEP_PAUSE_MS = 120
+const JOY_REACH = 26
 const IDLE_MS = 3000
 const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'], paused: ['', 'En pausa'] }
 
@@ -25,10 +29,7 @@ const guardHtml = () => {
 	const since = cam.state === 'on_guard' && cam.guardSinceMs ? span(s.nowMs - cam.guardSinceMs < 60000 ? (s.nowMs - cam.guardSinceMs) / 1000 : Math.floor((s.nowMs - cam.guardSinceMs) / 60000) * 60) : '—'
 	const used = s.disk ? ((s.disk.totalBytes - s.disk.freeBytes) / s.disk.totalBytes) * 100 : 0
 	return `<header class="card-head"><h2>Guardia</h2><span class="chip ${cls}"><i class="dot"></i>${label}</span></header>
-		<div class="stat-row">
-			<div class="stat"><span class="mono stat-n">${since}</span><span class="stat-l">sin huecos</span></div>
-			<div class="stat"><span class="mono stat-n" data-cov>—</span><span class="stat-l">cobertura de hoy</span></div>
-		</div>
+		<p class="guard-since"><b>${since}</b><span>sin huecos</span></p>
 		${cam.state === 'paused' ? `<p class="note">${I.pause}<span><b>Grabación en pausa.</b> ${cam.pausedUntilMs ? `Se reanuda sola a las ${clockAt(cam.pausedUntilMs)}.` : 'Sigue así hasta que la reanudes.'} El vivo sigue funcionando.</span></p>` : cam.gap ? `<p class="note">${I[CAUSE[cam.gap.cause]?.icon ?? 'alert']}<span><b>${esc(CAUSE[cam.gap.cause]?.label ?? 'Sin grabación')}</b> desde hace ${span((s.nowMs - cam.gap.startMs) / 1000)}.</span></p>` : ''}
 		${s.disk ? `<div class="disk"><div class="disk-bar"><i class="o" style="width:${used}%"></i><i class="limit" style="left:${s.retention.percent}%"></i></div>
 		<p class="disk-l"><span><i class="sw o"></i>Ocupado <b class="mono">${Math.round((s.disk.totalBytes - s.disk.freeBytes) / GB)} GB</b></span><span><i class="sw f"></i>Libre <b class="mono">${Math.round(s.disk.freeBytes / GB)} GB</b></span><span>Guarda <b class="mono">${s.retention.days} días</b></span></p></div>` : ''}`
@@ -36,7 +37,7 @@ const guardHtml = () => {
 
 const html = () => `<div class="live-grid">
 	<div class="live-main">
-		<section class="stage" data-stage>
+		<div class="monitor"><section class="stage" data-stage>
 			<video autoplay playsinline muted class="${state.camera.rotation === 180 ? 'rot' : ''}"></video>
 			<div class="osd tl"><span class="badge live" data-badge><i class="dot pulse"></i>EN VIVO</span><span class="badge ghost" data-paused-badge hidden>${I.pause}SIN GRABAR</span><span class="osd-name">${esc(state.camera.name)}</span><span class="follow-chip" data-follow-chip hidden></span></div>
 			<div class="boxes" data-boxes hidden></div>
@@ -56,13 +57,15 @@ const html = () => `<div class="live-grid">
 				<button class="bar-btn" type="button" data-full title="Pantalla completa">${I.full}<span class="sr-only">Pantalla completa</span></button>
 			</div>
 			<div class="pad stage-pad" role="group" aria-label="Mover la cámara">${PAD_KEYS}</div>
+			<i class="crt-fx" aria-hidden="true"></i>
 		</section>
+		<div class="plate" aria-hidden="true"><span class="plate-brand">Velador · ${esc(state.camera.name)}</span><span class="plate-leds">MOTOR <i></i> GRAB <i class="rec" data-led-rec></i></span><span class="knob"></span><span class="knob"></span></div></div>
 		<section class="card today">
 			<header class="card-head"><h2>Ronda de hoy</h2>${LEGEND}<a class="link" href="#/round">Abrir la ronda ${I.arrow}</a></header>
 			<div data-mini></div>
 		</section>
 	</div>
-	<aside class="rail"><section class="card" data-guard>${guardHtml()}</section><section class="card">${PAD}</section></aside>
+	<aside class="rail"><section class="card guard-card"><div data-guard>${guardHtml()}</div><div class="dials">${dial('cov', 'Cobertura hoy', 'var(--span)')}${dial('disk', 'Disco libre', 'var(--brand)')}</div></section><section class="card">${PAD}</section><section class="card zone-card" data-zone-card><header class="card-head"><h2>Hacia dónde ve</h2><span class="chip" data-zone-chip hidden></span></header>${zoneMapHtml(true)}<div class="form-row zone-card-row"><button class="btn small" type="button" data-go-home hidden>${I.home}<span>Ir al reposo</span></button><span class="spacer"></span><a class="link" href="#/cameras">Ajustar zona ${I.arrow}</a></div><p class="muted-s">Toca el mapa para llevar la cámara ahí.</p></section></aside>
 </div>`
 
 const mount = main => {
@@ -120,6 +123,15 @@ const mount = main => {
 		const d = new Date()
 		main.querySelector('[data-clock]').textContent = d.toLocaleTimeString('es-MX', { hour12: false })
 	}
+	const setDial = (key, value, text) => {
+		const el = main.querySelector(`[data-dial="${key}"]`)
+		el.style.setProperty('--v', Math.max(0, Math.min(100, value)))
+		el.querySelector('b').textContent = text
+	}
+	const showDisk = () => {
+		const disk = state.summary.disk
+		if (disk) setDial('disk', (disk.freeBytes / disk.totalBytes) * 100, `${Math.round(disk.freeBytes / GB)} GB`)
+	}
 	const refresh = async () => {
 		try {
 			await loadSummary()
@@ -130,7 +142,8 @@ const mount = main => {
 		if (!alive) return
 		main.querySelector('[data-guard]').innerHTML = guardHtml()
 		showRec()
-		main.querySelector('[data-cov]').textContent = pct(round.coverage)
+		setDial('cov', round.coverage, pct(round.coverage))
+		showDisk()
 		main.querySelector('[data-mini]').innerHTML = roundHtml(round, undefined, { mini: true })
 		setCursor(main.querySelector('[data-mini] .rt'), round.end, { from: 0, to: round.len }, round)
 	}
@@ -142,6 +155,7 @@ const mount = main => {
 		recBtn.classList.toggle('lit', paused)
 		recBtn.setAttribute('aria-haspopup', paused ? 'false' : 'menu')
 		main.querySelector('[data-paused-badge]').hidden = !paused
+		main.querySelector('[data-led-rec]').classList.toggle('off', state.camera.state !== 'on_guard')
 	}
 	const closeMenu = () => {
 		recMenu.hidden = true
@@ -161,6 +175,7 @@ const mount = main => {
 		recBtn.disabled = false
 	}
 	showRec()
+	showDisk()
 	const followBtn = main.querySelector('[data-follow]')
 	const followChip = main.querySelector('[data-follow-chip]')
 	const boxes = main.querySelector('[data-boxes]')
@@ -186,8 +201,9 @@ const mount = main => {
 		followBtn.querySelector('span').textContent = v.following ? 'Siguiendo' : 'Seguir personas'
 		followChip.hidden = !v.following
 		followChip.classList.toggle('wait', v.manualHold || v.coasting || v.returning || v.targetId == null)
-		followChip.innerHTML = `${I.person}<span>${v.manualHold ? 'Movimiento manual · ésta será la posición de inicio' : v.returning ? 'Regresando a la posición de inicio' : v.coasting ? 'Buscando hacia donde se fue' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
+		followChip.innerHTML = `${I.person}<span>${v.manualHold ? (v.zone ? 'Movimiento manual · espera 10 s' : 'Movimiento manual · ésta será la posición de inicio') : v.returning ? 'Regresando al reposo' : v.atLimit ? 'En el límite de la zona' : v.coasting ? 'Buscando hacia donde se fue' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
 		const tracks = ready ? v.tracks : []
+		setAlert(tracks.some(t => t.seen) ? 'Hay alguien frente a la cámara' : null)
 		boxes.hidden = !tracks.length || !placeBoxes()
 		if (boxes.hidden) return
 		boxes.innerHTML = tracks
@@ -208,7 +224,7 @@ const mount = main => {
 		followBtn.disabled = true
 		const calibrating = on && !vision?.calibration
 		if (calibrating) {
-			followBtn.querySelector('span').textContent = 'Calibrando… unos 30 s'
+			followBtn.querySelector('span').textContent = 'Calibrando… cerca de un minuto'
 			toast('Calibrando: la cámara va a girar un poco y regresar')
 		}
 		try {
@@ -222,6 +238,38 @@ const mount = main => {
 	}
 	pollVision()
 	const visionTick = setInterval(pollVision, 300)
+	const zoneCard = main.querySelector('[data-zone-card]')
+	const zoneChip = main.querySelector('[data-zone-chip]')
+	const homeBtn = main.querySelector('[data-go-home]')
+	let zoneNow = null
+	const goTo = async (x, y) => {
+		try {
+			await api.goTo(state.camera.id, x, y)
+		} catch (err) {
+			toast(err.message.startsWith('http') ? 'La cámara no respondió al movimiento' : err.message)
+		}
+	}
+	const zoneMap = mountZoneMap(zoneCard, { cameraId: state.camera.id, onGo: goTo })
+	let zoneBusy = false
+	const pollZone = async () => {
+		if (zoneBusy || document.hidden) return
+		zoneBusy = true
+		try {
+			const z = await api.zone(state.camera.id)
+			if (alive) {
+				zoneNow = z.zone
+				zoneMap.setZone(z.zone)
+				zoneMap.show(z)
+				homeBtn.hidden = !z.zone
+				zoneChip.hidden = !z.zone && !z.busy
+				zoneChip.className = `chip ${z.busy ? '' : z.inside ? 'good' : 'warn'}`
+				zoneChip.innerHTML = `<i class="dot"></i>${z.busy ? 'Midiendo…' : z.inside ? 'Dentro de la zona' : 'Fuera de la zona'}`
+			}
+		} catch {}
+		zoneBusy = false
+	}
+	pollZone()
+	const zoneTick = setInterval(pollZone, 1500)
 	const zoom = attachZoom(stage, () => [video, boxes], { rotated: () => state.camera.rotation === 180, onChange: s => zoomLabel(stage, s) })
 	const lightBtn = main.querySelector('[data-light]')
 	const showLight = on => {
@@ -264,6 +312,42 @@ const mount = main => {
 		main.querySelectorAll('[data-ptz].held').forEach(b => b.classList.remove('held'))
 	}
 	const dirOf = b => b.dataset.ptz.split(',').map(Number)
+	const joy = main.querySelector('[data-joy]')
+	const ball = joy.querySelector('[data-ball]')
+	let joyDir = ''
+	const steer = e => {
+		const r = joy.getBoundingClientRect()
+		let x = e.clientX - r.left - r.width / 2
+		let y = e.clientY - r.top - r.height / 2
+		const far = Math.hypot(x, y)
+		if (far > JOY_REACH) {
+			x *= JOY_REACH / far
+			y *= JOY_REACH / far
+		}
+		ball.style.transform = `translate(${x}px, ${y}px)`
+		const dir = Math.hypot(x, y) < JOY_REACH / 2 ? null : Math.abs(x) > Math.abs(y) ? [Math.sign(x), 0] : [0, -Math.sign(y)]
+		if (String(dir) === joyDir) return
+		joyDir = String(dir)
+		held = null
+		if (dir) hold(dir)
+	}
+	const letGo = () => {
+		if (!joy.classList.contains('drag')) return
+		joy.classList.remove('drag')
+		ball.style.transform = ''
+		joyDir = ''
+		release()
+	}
+	ball.addEventListener('pointerdown', e => {
+		if (e.button !== 0) return
+		e.preventDefault()
+		ball.setPointerCapture(e.pointerId)
+		joy.classList.add('drag')
+		steer(e)
+	})
+	ball.addEventListener('pointermove', e => joy.classList.contains('drag') && steer(e))
+	ball.addEventListener('pointerup', letGo)
+	ball.addEventListener('pointercancel', letGo)
 	const onPointerDown = e => {
 		const b = e.target.closest('[data-ptz]')
 		if (!b || e.button !== 0) return
@@ -346,6 +430,7 @@ const mount = main => {
 			save.disabled = false
 		}
 		if (e.target.closest('[data-follow]')) return setFollow(followBtn.getAttribute('aria-pressed') !== 'true')
+		if (e.target.closest('[data-go-home]') && zoneNow) return goTo(zoneNow.homeX, zoneNow.homeY)
 		if (e.target.closest('[data-light]')) {
 			lightBtn.disabled = true
 			try {
@@ -374,9 +459,12 @@ const mount = main => {
 	main.addEventListener('click', onClick)
 	return () => {
 		alive = false
+		setAlert(null)
 		clearInterval(tick)
 		clearInterval(poll)
 		clearInterval(visionTick)
+		clearInterval(zoneTick)
+		zoneMap.destroy()
 		zoom.destroy()
 		held = null
 		clearTimeout(idleTimer)

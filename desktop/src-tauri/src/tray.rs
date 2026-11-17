@@ -71,7 +71,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 fn tray_icon() -> tauri::Result<Image<'static>> {
     #[cfg(target_os = "macos")]
     let bytes: &[u8] = include_bytes!("../icons/tray.png");
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    let bytes: &[u8] = include_bytes!("../icons/tray_windows.png");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let bytes: &[u8] = include_bytes!("../icons/32x32.png");
     Image::from_bytes(bytes)
 }

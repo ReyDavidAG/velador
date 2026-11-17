@@ -31,7 +31,12 @@ public sealed class FaceDetector : IDisposable
 		_session = new InferenceSession(modelFile, cpu);
 	}
 
-	public Detection? Best(byte[] bgr, int width, int height, double minScore = 0.6)
+	public sealed record FaceFind(Box Box, double Score, FacePoint[] Points);
+
+	public Detection? Best(byte[] bgr, int width, int height, double minScore = 0.6) =>
+		Find(bgr, width, height, minScore) is { } face ? new Detection(face.Box, face.Score) : null;
+
+	public FaceFind? Find(byte[] bgr, int width, int height, double minScore = 0.6)
 	{
 		lock (_lock)
 		{
@@ -55,12 +60,13 @@ public sealed class FaceDetector : IDisposable
 			}
 			using var results = _session.Run([NamedOnnxValue.CreateFromTensor("input", _tensor)]);
 			var outputs = results.ToDictionary(r => r.Name, r => r.AsTensor<float>());
-			Detection? best = null;
+			FaceFind? best = null;
 			foreach (var stride in Strides)
 			{
 				var cls = outputs[$"cls_{stride}"];
 				var obj = outputs[$"obj_{stride}"];
 				var box = outputs[$"bbox_{stride}"];
+				var kps = outputs[$"kps_{stride}"];
 				var cols = Size / stride;
 				for (var i = 0; i < cols * cols; i++)
 				{
@@ -71,7 +77,9 @@ public sealed class FaceDetector : IDisposable
 					var bw = Math.Exp(box[0, i, 2]) * stride / scale;
 					var bh = Math.Exp(box[0, i, 3]) * stride / scale;
 					if (cx >= width || cy >= height) continue;
-					best = new Detection(Box.FromCenter(cx / width, cy / height, bw / width, bh / height), score);
+					var points = new FacePoint[5];
+					for (var k = 0; k < 5; k++) points[k] = new FacePoint((i % cols + kps[0, i, 2 * k]) * stride / scale / width, (i / cols + kps[0, i, 2 * k + 1]) * stride / scale / height);
+					best = new FaceFind(Box.FromCenter(cx / width, cy / height, bw / width, bh / height), score, points);
 				}
 			}
 			return best;

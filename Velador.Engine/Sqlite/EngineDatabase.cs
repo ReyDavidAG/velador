@@ -25,6 +25,8 @@ public sealed class EngineDatabase : IDisposable
 		Run("CREATE INDEX IF NOT EXISTS sightings_person ON sightings (person_id, start_ms)");
 		if (Scalar("SELECT COUNT(*) FROM pragma_table_info('sightings') WHERE name = 'descriptor'") == 0) Run("ALTER TABLE sightings ADD COLUMN descriptor BLOB NULL");
 		if (Scalar("SELECT COUNT(*) FROM pragma_table_info('sightings') WHERE name = 'face_file'") == 0) Run("ALTER TABLE sightings ADD COLUMN face_file TEXT NULL");
+		if (Scalar("SELECT COUNT(*) FROM pragma_table_info('sightings') WHERE name = 'fused_file'") == 0) Run("ALTER TABLE sightings ADD COLUMN fused_file TEXT NULL");
+		if (Scalar("SELECT COUNT(*) FROM pragma_table_info('sightings') WHERE name = 'face_px'") == 0) Run("ALTER TABLE sightings ADD COLUMN face_px INTEGER NULL");
 		Run("CREATE TABLE IF NOT EXISTS clips (id INTEGER PRIMARY KEY, camera_id TEXT NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, title TEXT NOT NULL, file TEXT NOT NULL, bytes INTEGER NOT NULL, created_ms INTEGER NOT NULL)");
 	}
 
@@ -140,7 +142,7 @@ public sealed class EngineDatabase : IDisposable
 		}
 	}
 
-	public sealed record Sighting(long Id, long PersonId, long StartMs, long EndMs, string File, double Score = 0, string? Face = null);
+	public sealed record Sighting(long Id, long PersonId, long StartMs, long EndMs, string File, double Score = 0, string? Face = null, string? Fused = null, int FacePx = 0);
 
 	public sealed record StoredSighting(long Id, string CameraId, string Day, long StartMs, long EndMs, string File, double Score, float[]? Descriptor);
 
@@ -183,14 +185,14 @@ public sealed class EngineDatabase : IDisposable
 	{
 		lock (_lock)
 		{
-			using var command = Command("SELECT p.id, p.day, p.first_ms, p.last_ms, s.id, s.start_ms, s.end_ms, s.file, s.score, s.face_file FROM people p JOIN sightings s ON s.person_id = p.id WHERE p.camera_id = $c AND p.day = $d ORDER BY p.last_ms DESC, s.start_ms", ("$c", cameraId), ("$d", day));
+			using var command = Command("SELECT p.id, p.day, p.first_ms, p.last_ms, s.id, s.start_ms, s.end_ms, s.file, s.score, s.face_file, s.fused_file, s.face_px FROM people p JOIN sightings s ON s.person_id = p.id WHERE p.camera_id = $c AND p.day = $d ORDER BY p.last_ms DESC, s.start_ms", ("$c", cameraId), ("$d", day));
 			using var reader = command.ExecuteReader();
 			var people = new List<Person>();
 			while (reader.Read())
 			{
 				var id = reader.GetInt64(0);
 				if (people.Count == 0 || people[^1].Id != id) people.Add(new Person(id, reader.GetString(1), reader.GetInt64(2), reader.GetInt64(3), new List<Sighting>()));
-				((List<Sighting>)people[^1].Sightings).Add(new Sighting(reader.GetInt64(4), id, reader.GetInt64(5), reader.GetInt64(6), reader.GetString(7), reader.GetDouble(8), reader.IsDBNull(9) ? null : reader.GetString(9)));
+				((List<Sighting>)people[^1].Sightings).Add(new Sighting(reader.GetInt64(4), id, reader.GetInt64(5), reader.GetInt64(6), reader.GetString(7), reader.GetDouble(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10), reader.IsDBNull(11) ? 0 : reader.GetInt32(11)));
 			}
 			return people;
 		}
@@ -200,9 +202,9 @@ public sealed class EngineDatabase : IDisposable
 	{
 		lock (_lock)
 		{
-			using var command = Command("SELECT id, person_id, start_ms, end_ms, file, face_file FROM sightings WHERE id = $i", ("$i", id));
+			using var command = Command("SELECT id, person_id, start_ms, end_ms, file, face_file, fused_file FROM sightings WHERE id = $i", ("$i", id));
 			using var reader = command.ExecuteReader();
-			return reader.Read() ? new Sighting(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetString(4), 0, reader.IsDBNull(5) ? null : reader.GetString(5)) : null;
+			return reader.Read() ? new Sighting(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetString(4), 0, reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6)) : null;
 		}
 	}
 
@@ -221,6 +223,42 @@ public sealed class EngineDatabase : IDisposable
 	public void SetFace(long sightingId, string faceFile)
 	{
 		lock (_lock) Run("UPDATE sightings SET face_file = $f WHERE id = $i", ("$f", faceFile), ("$i", sightingId));
+	}
+
+	public IReadOnlyList<string> ForgetFaces()
+	{
+		lock (_lock)
+		{
+			using var command = Command("SELECT face_file, fused_file FROM sightings");
+			var files = new List<string>();
+			using (var reader = command.ExecuteReader())
+				while (reader.Read())
+					for (var i = 0; i < 2; i++)
+						if (!reader.IsDBNull(i) && reader.GetString(i).Length > 0) files.Add(reader.GetString(i));
+			Run("UPDATE sightings SET face_file = NULL, fused_file = NULL, face_px = NULL");
+			return files;
+		}
+	}
+
+	public long SightingId(string file)
+	{
+		lock (_lock) return Scalar("SELECT COALESCE(MAX(id), 0) FROM sightings WHERE file = $f", ("$f", file));
+	}
+
+	public void SetFaces(long sightingId, string faceFile, string? fusedFile, int facePx)
+	{
+		lock (_lock) Run("UPDATE sightings SET face_file = $f, fused_file = $u, face_px = $x WHERE id = $i", ("$f", faceFile), ("$u", (object?)fusedFile ?? DBNull.Value), ("$x", facePx), ("$i", sightingId));
+	}
+
+	public IReadOnlyList<string> RemoveSighting(long sightingId)
+	{
+		lock (_lock)
+		{
+			var files = SightingFiles("id = $i", ("$i", sightingId));
+			Run("DELETE FROM sightings WHERE id = $i", ("$i", sightingId));
+			Run("DELETE FROM people WHERE id NOT IN (SELECT DISTINCT person_id FROM sightings)");
+			return files;
+		}
 	}
 
 	public IReadOnlyList<string> RemovePerson(long personId)
@@ -247,13 +285,14 @@ public sealed class EngineDatabase : IDisposable
 
 	List<string> SightingFiles(string where, params (string, object)[] args)
 	{
-		using var command = Command($"SELECT file, face_file FROM sightings WHERE {where}", args);
+		using var command = Command($"SELECT file, face_file, fused_file FROM sightings WHERE {where}", args);
 		using var reader = command.ExecuteReader();
 		var files = new List<string>();
 		while (reader.Read())
 		{
 			files.Add(reader.GetString(0));
 			if (!reader.IsDBNull(1) && reader.GetString(1).Length > 0) files.Add(reader.GetString(1));
+			if (!reader.IsDBNull(2) && reader.GetString(2).Length > 0) files.Add(reader.GetString(2));
 		}
 		return files;
 	}

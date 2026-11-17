@@ -1,81 +1,117 @@
 :root {
-	--bg: #0b0d11;
-	--surface: #13161c;
-	--surface-2: #191d25;
-	--sunken: #0f1216;
-	--ink: #eef0f4;
-	--ink-2: #c9ced8;
-	--muted: #969eac;
-	--faint: #8a92a0;
-	--line: #262b35;
-	--line-strong: #586070;
-	--hairline: #1d2129;
+	--bg: #08070c;
+	--surface: #13111a;
+	--surface-2: #1b1825;
+	--sunken: #0d0b13;
+	--ink: #efe9dc;
+	--ink-2: #cfc8d6;
+	--muted: #9a93aa;
+	--faint: #8c85a0;
+	--line: #2a2536;
+	--line-strong: #5b5470;
+	--hairline: #1f1b29;
 
-	--brand: #f5b83d;
-	--brand-ink: #1c1403;
-	--brand-soft: rgb(245 184 61 / 0.14);
+	--brand: #ffc857;
+	--brand-ink: #1a1203;
+	--brand-soft: rgb(255 200 87 / 0.14);
+	--brand-deep: #9c7420;
 
-	--span: #3fb6a8;
-	--span-soft: rgb(63 182 168 / 0.16);
+	--span: #2fc4b2;
+	--span-soft: rgb(47 196 178 / 0.16);
 	--relay: #5b9bf0;
-	--motion: #f5b83d;
-	--person: #b58cff;
-	--person-soft: rgb(181 140 255 / 0.16);
+	--motion: #f5a524;
+	--person: #b79cff;
+	--person-soft: rgb(183 156 255 / 0.16);
 	--live: #ff5a4d;
 	--live-soft: rgb(255 90 77 / 0.16);
-	--gap: #7d8594;
+	--gap: #7d7690;
 
-	--good: #46c58a;
-	--good-soft: rgb(70 197 138 / 0.14);
-	--warn: #f5b83d;
+	--good: #3ddc97;
+	--good-soft: rgb(61 220 151 / 0.14);
+	--warn: #ffc857;
 	--bad: #ff6b5e;
 
-	--font: 'Schibsted Grotesk', system-ui, sans-serif;
-	--mono: 'JetBrains Mono', ui-monospace, monospace;
+	--bezel-a: #2f2c36;
+	--bezel-b: #121017;
+	--bezel-line: #47425a;
+	--key-a: #2a2633;
+	--key-b: #17141f;
+	--key-edge: #05040a;
+	--board: #17120d;
+	--paper: #f3ecd8;
+	--paper-ink: #26202a;
+	--paper-dim: #6a6052;
+	--checker: rgb(255 255 255 / 0.055);
+	--spot: rgb(255 200 87 / 0.07);
+	--fur: #c58a4c;
+	--fur-2: #8a5527;
+	--muzzle: #ecd2a6;
+	--cap: #2c2a5e;
+	--eye: #ffd76a;
 
-	--r-lg: 18px;
+	--font: 'Rubik', system-ui, sans-serif;
+	--mono: 'JetBrains Mono', ui-monospace, monospace;
+	--sign: 'Bungee', 'Rubik', system-ui, sans-serif;
+	--osd: 'VT323', 'JetBrains Mono', ui-monospace, monospace;
+	--note: 'Special Elite', 'JetBrains Mono', ui-monospace, monospace;
+
+	--r-lg: 16px;
 	--r: 12px;
 	--r-sm: 8px;
-	--shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.7);
-	--shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.05);
+	--shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 22px 44px -24px rgb(0 0 0 / 0.9);
+	--shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.06);
 	--ease: cubic-bezier(0.22, 1, 0.36, 1);
-	--spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+	--spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 	color-scheme: dark;
 }
 
 :root[data-theme='light'] {
-	--bg: #f2f1ed;
-	--surface: #ffffff;
-	--surface-2: #f8f7f4;
-	--sunken: #e9e7e1;
-	--ink: #15171c;
-	--ink-2: #3a3f4a;
-	--muted: #5c6370;
-	--faint: #6b7280;
-	--line: #dfdcd4;
-	--line-strong: #8d8a82;
-	--hairline: #ebe9e3;
+	--bg: #f2e8d3;
+	--surface: #fffaf0;
+	--surface-2: #f6eedc;
+	--sunken: #eadfc6;
+	--ink: #2a2030;
+	--ink-2: #45394a;
+	--muted: #665a6b;
+	--faint: #74687a;
+	--line: #dccfb2;
+	--line-strong: #9c8c6c;
+	--hairline: #ebe0c8;
 
-	--brand: #8a5a00;
-	--brand-ink: #ffffff;
-	--brand-soft: rgb(196 132 10 / 0.14);
+	--brand: #c4302b;
+	--brand-ink: #fff6ec;
+	--brand-soft: rgb(196 48 43 / 0.1);
+	--brand-deep: #7d1612;
 
-	--span: #12897c;
-	--span-soft: rgb(18 137 124 / 0.13);
+	--span: #0f7d71;
+	--span-soft: rgb(15 125 113 / 0.13);
 	--relay: #2f6fd0;
-	--motion: #b97a06;
-	--person: #7a4be0;
-	--person-soft: rgb(122 75 224 / 0.12);
+	--motion: #a86a00;
+	--person: #6d43d9;
+	--person-soft: rgb(109 67 217 / 0.12);
 	--live: #b92d21;
 	--live-soft: rgb(212 58 45 / 0.12);
-	--gap: #7f7a6e;
+	--gap: #8a7f6a;
 
 	--good: #146c43;
 	--good-soft: rgb(27 133 83 / 0.12);
 	--warn: #8a5a00;
 	--bad: #c2372b;
 
-	--shadow: 0 1px 2px rgb(20 23 28 / 0.05), 0 12px 28px -18px rgb(20 23 28 / 0.3);
-	--shadow-pop: 0 24px 60px -22px rgb(20 23 28 / 0.45), 0 0 0 1px rgb(20 23 28 / 0.06);
+	--bezel-a: #f6eeda;
+	--bezel-b: #d6c9a9;
+	--bezel-line: #b3a481;
+	--key-a: #fffdf6;
+	--key-b: #eee3cb;
+	--key-edge: #bfae8a;
+	--board: #c99d6b;
+	--checker: rgb(42 32 48 / 0.1);
+	--spot: transparent;
+
+	--shadow: 0 1px 2px rgb(70 45 20 / 0.06), 0 20px 36px -24px rgb(70 45 20 / 0.5);
+	--shadow-pop: 0 24px 60px -22px rgb(70 45 20 / 0.5), 0 0 0 1px rgb(70 45 20 / 0.08);
 	color-scheme: light;
 }
+
+:root[data-mood='person'] { --eye: #b79cff; }
+:root[data-mood='off'] { --eye: #ff4747; }

@@ -26,6 +26,36 @@ public sealed class BgrFrame(byte[] pixels, int width, int height, long captured
 		return crop;
 	}
 
+	public byte[] Scaled(int width, int height)
+	{
+		var scaled = new byte[width * height * 3];
+		for (var y = 0; y < height; y++)
+		{
+			var y0 = y * Height / height;
+			var y1 = Math.Max(y0 + 1, (y + 1) * Height / height);
+			for (var x = 0; x < width; x++)
+			{
+				var x0 = x * Width / width;
+				var x1 = Math.Max(x0 + 1, (x + 1) * Width / width);
+				int b = 0, g = 0, r = 0;
+				for (var sy = y0; sy < y1; sy++)
+					for (var sx = x0; sx < x1; sx++)
+					{
+						var i = (sy * Width + sx) * 3;
+						b += Pixels[i];
+						g += Pixels[i + 1];
+						r += Pixels[i + 2];
+					}
+				var n = (y1 - y0) * (x1 - x0);
+				var t = (y * width + x) * 3;
+				scaled[t] = (byte)(b / n);
+				scaled[t + 1] = (byte)(g / n);
+				scaled[t + 2] = (byte)(r / n);
+			}
+		}
+		return scaled;
+	}
+
 	public float[] Gray(int width, int height)
 	{
 		var gray = new float[width * height];
@@ -49,6 +79,44 @@ public static class GlobalMotion
 		var dx = Best(Profile(before, width, height, columns: true), Profile(after, width, height, columns: true), (int)(width * maxFraction));
 		var dy = Best(Profile(before, width, height, columns: false), Profile(after, width, height, columns: false), (int)(height * maxFraction));
 		return (dx / width, dy / height);
+	}
+
+	public static (double Shift, double Score) Slide(float[] before, float[] after, int width, int height, bool horizontal, double maxFraction = 0.4)
+	{
+		var reach = (int)((horizontal ? width : height) * maxFraction);
+		var best = 0;
+		var bestScore = -1.0;
+		for (var s = -reach; s <= reach; s++)
+		{
+			double sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+			var n = 0;
+			for (var y = 0; y < height; y += 2)
+			{
+				var y2 = horizontal ? y : y + s;
+				if (y2 < 0 || y2 >= height) continue;
+				for (var x = 0; x < width; x += 2)
+				{
+					var x2 = horizontal ? x + s : x;
+					if (x2 < 0 || x2 >= width) continue;
+					var a = before[y * width + x];
+					var b = after[y2 * width + x2];
+					sa += a;
+					sb += b;
+					saa += a * a;
+					sbb += b * b;
+					sab += a * b;
+					n++;
+				}
+			}
+			if (n < width * height / 16) continue;
+			var va = saa - sa * sa / n;
+			var vb = sbb - sb * sb / n;
+			var score = va <= 0 || vb <= 0 ? -1 : (sab - sa * sb / n) / Math.Sqrt(va * vb);
+			if (score <= bestScore) continue;
+			bestScore = score;
+			best = s;
+		}
+		return ((double)best / (horizontal ? width : height), bestScore);
 	}
 
 	static double[] Profile(float[] gray, int width, int height, bool columns)

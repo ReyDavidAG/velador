@@ -63,91 +63,6 @@ public class TrackerTests
 	}
 }
 
-public class FollowTests
-{
-	[Fact]
-	public void A_centered_still_person_does_not_move_the_camera()
-	{
-		var follow = new FollowController();
-		var still = new TrackState(1, Box.FromCenter(0.5, 0.6, 0.1, 0.4), 0, 0, 0.9, true, 0, 0);
-
-		for (var i = 0; i < 10; i++) follow.Step(still, i * 100);
-
-		Assert.True(follow.Command.IsZero);
-	}
-
-	[Fact]
-	public void It_turns_toward_a_person_off_center_keeps_going_a_moment_and_stops_when_lost()
-	{
-		var follow = new FollowController();
-		for (var i = 0; i < 5; i++) follow.Step(new TrackState(1, Box.FromCenter(0.85, 0.6, 0.1, 0.4), 0, 0, 0.9, true, 0, i * 100), i * 100);
-		Assert.True(follow.Command.X > 0.3);
-
-		follow.Step(null, 600);
-		Assert.True(follow.Coasting);
-
-		for (var i = 7; i < 55; i++) follow.Step(null, i * 100);
-		Assert.True(follow.Command.IsZero);
-		Assert.False(follow.Coasting);
-	}
-
-	[Theory]
-	[InlineData(0.4, 1)]
-	[InlineData(-0.4, -1)]
-	public void When_the_person_leaves_by_one_side_it_turns_toward_that_side(double offset, int side)
-	{
-		var follow = new FollowController();
-		for (var i = 0; i < 5; i++) follow.Step(new TrackState(1, Box.FromCenter(0.5 + offset, 0.6, 0.1, 0.4), 0, 0, 0.9, true, 0, i * 100), i * 100);
-		for (var i = 5; i < 12; i++) follow.Step(null, i * 100);
-
-		Assert.True(follow.Coasting);
-		Assert.Equal(side, Math.Sign(follow.Command.X));
-	}
-
-	[Theory]
-	[InlineData(0.15, 0.95)]
-	[InlineData(0.30, 0.75)]
-	public void With_the_measured_camera_it_keeps_a_walking_person_in_view(double speed, double atLeast)
-	{
-		var predicting = InView(new FollowTuning(GainX: 0.86, GainY: 0.63, LagS: 1.56), speed);
-		var chasing = InView(new FollowTuning(GainX: 0.86, GainY: 0.63, LagS: 0, HorizonS: 0), speed);
-
-		Assert.True(predicting >= atLeast, $"con predicción {predicting:P0}");
-		Assert.True(predicting > chasing + 0.2, $"con predicción {predicting:P0}, sin ella {chasing:P0}");
-	}
-
-	static double InView(FollowTuning tuning, double speed)
-	{
-		const double dt = 0.1, gain = 0.86;
-		var inView = 0;
-		var total = 0;
-		for (var seed = 0; seed < 6; seed++)
-		{
-			var rng = new Random(seed);
-			var follow = new FollowController(tuning);
-			var tracker = new Tracker();
-			double person = 0, view = 0;
-			var seen = new Queue<(double Person, double View)>();
-			var commands = new Queue<double>();
-			for (var step = 0; step < 150; step++)
-			{
-				var t = step * dt;
-				person += (t is >= 2 and < 9 ? speed : 0) * dt;
-				seen.Enqueue((person, view));
-				var (p, v) = seen.Count > 13 ? seen.Dequeue() : seen.Peek();
-				var x = 0.5 + p - v + (rng.NextDouble() - 0.5) * 0.04;
-				var ms = (long)(t * 1000);
-				var tracks = tracker.Update(Math.Abs(x - 0.5) < 0.5 ? [new Detection(Box.FromCenter(x, 0.5, 0.15, 0.45), 0.9)] : [], ms);
-				commands.Enqueue(follow.Step(follow.Pick(tracks, ms), ms).X);
-				view += gain * (commands.Count > 3 ? commands.Dequeue() : 0) * dt;
-				inView += Math.Abs(person - view) < 0.4 ? 1 : 0;
-				total++;
-			}
-		}
-		return (double)inView / total;
-	}
-}
-
 public class VisionPrimitiveTests
 {
 	static float[] Pattern(int w, int h, int shiftX, int shiftY)
@@ -206,13 +121,6 @@ public class VisionPrimitiveTests
 		Assert.Equal([0x89, 0x50, 0x4E, 0x47], png[..4]);
 		Assert.Equal(20, png[19]);
 		Assert.Equal(40, png[23]);
-	}
-
-	[Fact]
-	public void An_upside_down_camera_turns_the_other_way()
-	{
-		Assert.Equal((-0.4, 0.2), PtzOrientation.ToCamera(0.4, -0.2, 180));
-		Assert.Equal((0.4, -0.2), PtzOrientation.ToCamera(0.4, -0.2, 0));
 	}
 }
 

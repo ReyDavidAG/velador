@@ -4,7 +4,7 @@ import { dateLabel, dayLabel, esc, I, KIND, segment, span } from '../ui.js'
 
 const card = (r, e, i) =>
 	`<a class="ev-card animate-tile-in" style="--i:${i}" href="#/round" data-day="${r.i}" data-t="${e.t}">
-		<span class="thumb"><video muted playsinline preload="none" class="${state.camera.rotation === 180 ? 'rot' : ''}" data-src="${api.mediaUrl(state.camera.id, r.ms(e.t), 2000, 'minor')}#t=0.5"></video><span class="badge kind ${e.kind}">${I[KIND[e.kind]?.icon ?? 'motion']}${esc(KIND[e.kind]?.label ?? 'Suceso')}</span><span class="thumb-t mono">${span(e.dur)}</span><span class="thumb-play">${I.play}</span></span>
+		<span class="thumb"><video muted playsinline loop preload="none" class="${state.camera.rotation === 180 ? 'rot' : ''}" data-src="${api.mediaUrl(state.camera.id, r.ms(e.t + Math.min(e.dur * 0.35, 4)), 4000, 'minor')}#t=0.4"></video><span class="badge kind ${e.kind}">${I[KIND[e.kind]?.icon ?? 'motion']}${esc(KIND[e.kind]?.label ?? 'Suceso')}</span><span class="thumb-t mono">${span(e.dur)}</span><span class="thumb-play">${I.play}</span></span>
 		<span class="ev-card-b"><b class="mono">${r.clock(e.t)}</b><small class="mono">S-${e.id}</small></span>
 	</a>`
 
@@ -28,6 +28,7 @@ const mount = main => {
 		entries => {
 			for (const entry of entries) {
 				if (!entry.isIntersecting) continue
+				entry.target.preload = 'auto'
 				entry.target.src = entry.target.dataset.src
 				watcher.unobserve(entry.target)
 			}
@@ -50,6 +51,18 @@ const mount = main => {
 		state.t = Math.max(0, Number(c.dataset.t) - 3)
 		state.playing = true
 	}
+	const onOver = e => {
+		const v = e.target.closest('.ev-card')?.querySelector('video')
+		if (v?.src) v.play().catch(() => {})
+	}
+	const onOut = e => {
+		const v = e.target.closest('.ev-card')?.querySelector('video')
+		if (!v?.src || e.relatedTarget?.closest?.('.ev-card') === e.target.closest('.ev-card')) return
+		v.pause()
+		v.currentTime = 0.4
+	}
+	main.addEventListener('pointerover', onOver)
+	main.addEventListener('pointerout', onOut)
 	main.addEventListener('segment', onSeg)
 	main.addEventListener('click', onClick)
 	loadWeek().then(w => {
@@ -58,6 +71,8 @@ const mount = main => {
 	})
 	return () => {
 		watcher.disconnect()
+		main.removeEventListener('pointerover', onOver)
+		main.removeEventListener('pointerout', onOut)
 		main.removeEventListener('segment', onSeg)
 		main.removeEventListener('click', onClick)
 	}

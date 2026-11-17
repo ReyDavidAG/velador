@@ -22,9 +22,25 @@ public static partial class Endpoints
 		api.MapManagement();
 		api.MapTapo();
 		api.MapVision();
+		api.MapZone();
 		api.MapPost("/cameras/{id}/live", (string id, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, null, stream, context, settings, media));
 		api.MapGet("/cameras/{id}/hls/{stream}/{file}", (string id, string stream, string file, HttpContext context, EngineSettings settings, MediaMtxClient media) => Hls(id, stream, file, context, settings, media));
 		api.MapMethods("/cameras/{id}/live/{session}", ["PATCH", "DELETE"], (string id, string session, string? stream, HttpContext context, EngineSettings settings, MediaMtxClient media) => Whep(id, session, stream, context, settings, media));
+	}
+
+	static (long AtMs, string Stamp) _web;
+
+	static string WebStamp(long nowMs)
+	{
+		if (nowMs - _web.AtMs < 4000 && _web.Stamp is not null) return _web.Stamp;
+		var stamp = "";
+		try
+		{
+			if (EnginePaths.WebRoot() is { } root) stamp = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Max(f => File.GetLastWriteTimeUtc(f).Ticks).ToString(System.Globalization.CultureInfo.InvariantCulture);
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException) { }
+		_web = (nowMs, stamp);
+		return stamp;
 	}
 
 	static IResult Summary(EngineSettings settings, Storage storage, EngineDatabase database, ContinuityService continuity, RecordingControl recording, MediaSupervisor supervisor, TimeProvider time)
@@ -50,6 +66,7 @@ public static partial class Endpoints
 		return Results.Ok(new
 		{
 			nowMs = now,
+			web = WebStamp(now),
 			state = settings.Cameras.Count == 0 ? "no_camera" : supervisor.Missing ? "no_media_server" : "running",
 			cameras,
 			disk = Disk(storage.Active),

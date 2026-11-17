@@ -2,6 +2,7 @@ import { api } from '../services/api.js'
 import { loadSummary, state } from '../store.js'
 import { confirmOnce, esc, I, segment, toast, toggle } from '../ui.js'
 import { bindCameraForm, cameraFormHtml } from './camera_form.js'
+import { mountZoneEditor, showZoneSummary, zoneEditorHtml, zoneSummaryHtml } from './zone_editor.js'
 
 const STATE = { on_guard: ['good', 'De guardia'], reconnecting: ['warn', 'Reconectando'], gap: ['warn', 'Sin grabar'], paused: ['', 'En pausa'] }
 
@@ -15,6 +16,7 @@ const card = (c, live) => {
 			<div class="nets"><div class="form-row"><b>Redes conocidas</b><span class="muted-s">${c.networks.length} de 3 · ${c.followsAddress ? 'se reconecta sola aunque cambie su dirección' : 'aún no se identifica la cámara para seguirla'}</span></div>
 				${c.networks.map(n => `<div class="net ${n.current ? 'on' : ''}"><span class="ev-ico ${n.current ? 'span' : ''}">${I.wifi}</span><span class="ev-main"><b>${esc(n.name)}</b><small class="mono">${esc(n.host)}${n.current ? ' · conectado ahora' : ''}</small></span>${n.current ? '' : `<button class="btn small" type="button" data-use="${esc(n.id)}" data-of="${esc(c.id)}">Usar</button>`}<button class="icon-btn danger" type="button" data-forget="${esc(n.id)}" data-of="${esc(c.id)}" title="Olvidar esta red">${I.trash}<span class="sr-only">Olvidar esta red</span></button></div>`).join('') || '<p class="muted-s">Se llenan solas: cada red donde Velador vea esta cámara queda guardada.</p>'}
 			</div>
+			${zoneSummaryHtml(c.id)}
 			<div class="nets" data-extras="${esc(c.id)}"><p class="muted-s">Consultando luz e imagen…</p></div>
 			<ul class="results" data-results hidden></ul>
 			<div class="cam-actions"><button class="btn" type="button" data-test="${esc(c.id)}">Probar conexión</button><button class="btn" type="button" data-edit="${esc(c.id)}">Editar</button><button class="btn ghost" type="button" data-remove="${esc(c.id)}">${I.trash}<span>Quitar</span></button></div>
@@ -28,7 +30,24 @@ const mount = main => {
 	const root = main.querySelector('[data-root]')
 	let unbind = () => {}
 	let cameras = []
+	let closeZone = () => {}
+	const openZone = id => {
+		closeZone()
+		const camera = cameras.find(c => c.id === id)
+		if (!camera) return
+		root.insertAdjacentHTML('afterbegin', zoneEditorHtml(camera))
+		const unmount = mountZoneEditor(root, camera, () => closeZone())
+		closeZone = () => {
+			unmount()
+			root.querySelector('[data-zone-ed]')?.remove()
+			closeZone = () => {}
+			showZoneSummary(root, id)
+		}
+		main.scrollTop = 0
+	}
+	const SHARP = [['40', 'Suave'], ['50', 'Normal'], ['56', 'Media'], ['62', 'Alta']]
 	const draw = async (editing = null) => {
+		closeZone()
 		unbind()
 		cameras = await api.cameras()
 		await loadSummary().catch(() => {})
@@ -55,6 +74,13 @@ const mount = main => {
 					<div class="set-row"><div class="set-text"><b>Voltear la imagen en la cámara</b><small>Para cámaras montadas de cabeza. La hora impresa queda derecha.</small></div>${toggle(`flip:${id}`, x.flipped, 'Voltear la imagen')}</div>
 					<div class="set-row"><div class="set-text"><b>WiFi de la cámara</b><small>Ver las redes que alcanza y pasarla a otra.</small></div><button class="btn small" type="button" data-wifi="${id}">Ver redes</button></div>
 					<div data-wifi-box></div>`
+				const p = await api.picture(id).catch(() => null)
+				if (p)
+					box.insertAdjacentHTML(
+						'beforeend',
+						`<div class="set-row"><div class="set-text"><b>Nitidez de la imagen</b><small>Realza los bordes en la propia cámara. «Alta» marca más los detalles, pero también el grano; pruébala de día y de noche.</small></div>${segment(`sharp:${id}`, SHARP.some(([v]) => Number(v) === p.sharpness) ? SHARP : [...SHARP, [String(p.sharpness), `${p.sharpness}`]], p.sharpness, 'Nitidez')}</div>
+						<p class="muted-s">Video principal: <span class="mono">${esc(p.resolution.replace('*', '×'))} · ${p.frameRate} cps · ${p.bitrate} kb/s</span>.</p>`
+					)
 			} catch (err) {
 				box.innerHTML = `<p class="muted-s">Luz, volteo y WiFi no disponibles: ${esc(err.message)} Edita la cámara y escribe la contraseña de tu cuenta Tapo.</p>`
 			}
@@ -63,10 +89,13 @@ const mount = main => {
 			cameras.map(c => card(c, state.summary?.cameras.find(x => x.id === c.id))).join('') +
 			`<button class="add-cam" type="button" data-add><span class="add-ico">${I.plus}</span><b>Agregar otra cámara</b><span>Cualquier cámara con RTSP y ONVIF. Velador la busca en tu red.</span></button>`
 		for (const c of cameras) extras(c.id)
+		for (const c of cameras) showZoneSummary(root, c.id)
 	}
 	const onClick = async e => {
 		if (e.target.closest('[data-add]')) return draw('')
 		if (e.target.closest('[data-back]')) return draw()
+		const zone = e.target.closest('[data-zone-open]')
+		if (zone) return openZone(zone.dataset.zoneOpen)
 		const edit = e.target.closest('[data-edit]')
 		if (edit) return draw(edit.dataset.edit)
 		const test = e.target.closest('[data-test]')
@@ -116,6 +145,7 @@ const mount = main => {
 	const onSeg = e => {
 		const [kind, id] = e.detail.id.split(':')
 		if (kind === 'night') api.night(id, e.detail.value).then(() => toast('Modo de noche cambiado')).catch(err => toast(err.message))
+		if (kind === 'sharp') api.setPicture(id, 'sharpness', e.detail.value).then(() => toast('Nitidez cambiada en la cámara')).catch(err => toast(err.message))
 	}
 	const onSwitch = e => {
 		const [kind, id] = e.detail.id.split(':')
@@ -141,6 +171,7 @@ const mount = main => {
 	main.addEventListener('click', onClick)
 	draw().catch(() => (root.innerHTML = '<p class="empty-s">No se pudieron leer las cámaras.</p>'))
 	return () => {
+		closeZone()
 		unbind()
 		main.removeEventListener('segment', onSeg)
 		main.removeEventListener('switch', onSwitch)

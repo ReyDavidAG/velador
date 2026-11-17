@@ -11,5 +11,8 @@ Velador es MIT. Junto al motor se distribuyen estas piezas, sin modificar, con s
 | ONNX Runtime | Corre el modelo | MIT | https://github.com/microsoft/onnxruntime |
 | DirectML (sólo Windows) | Corre el modelo en la tarjeta gráfica | Licencia del paquete Microsoft.AI.DirectML | https://www.nuget.org/packages/Microsoft.AI.DirectML |
 | SQLite (Microsoft.Data.Sqlite) | Índice de huecos, sucesos, recortes y personas | Dominio público / MIT | https://www.sqlite.org · https://github.com/dotnet/efcore |
+| Bungee, Rubik y VT323 (`web/fonts`) | Tipografías de la interfaz | SIL Open Font License 1.1 | https://fonts.google.com/specimen/Bungee · https://fonts.google.com/specimen/Rubik · https://fonts.google.com/specimen/VT323 |
+| Special Elite (`web/fonts`) | Tipografía de las fichas y etiquetas | Apache 2.0 | https://fonts.google.com/specimen/Special+Elite |
+| JetBrains Mono (`web/fonts`) | Tipografía de cifras y folios | SIL Open Font License 1.1 | https://www.jetbrains.com/lp/mono |
 
 FFmpeg se usa como programa aparte (`ffmpeg.exe` y sus bibliotecas), sin enlazarlo al motor, y se puede reemplazar por cualquier otra compilación de FFmpeg con la variable `VELADOR_FFMPEG`. Las sumas SHA-256 de FFmpeg y de los modelos están fijadas en `scripts/build_windows.ps1` y `scripts/fetch_binaries.sh`.

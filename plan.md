@@ -243,6 +243,66 @@ WebKitGTK de Arch/CachyOS viene sin WebRTC (`RTCPeerConnection` no existe aunque
 - El motor lo reenvía en `GET /api/cameras/{id}/hls/{stream}/{archivo}` con la misma sesión; el front sigue sin hablar con MediaMTX.
 - `live.js` usa HLS sólo si no hay `RTCPeerConnection`; macOS y Windows siguen por WebRTC. Cuesta del orden de un segundo más de retraso.
 
+### 8 · Zona de vigilancia, seguimiento que sí sigue y caras más nítidas
+
+Aprobada por el usuario el 2026-11-15, con la cámara ya montada en su lugar. Rama `feature/zone-faces`.
+
+**Por qué no seguía.** La calibración era de otro montaje y sólo se medía la primera vez; suponía que la velocidad es proporcional a la orden y un solo sentido por eje. Medido en la C500: a media orden gira un tercio de lo que gira a orden completa, y la inclinación responde al revés en órdenes continuas que en pasos.
+
+- [x] Calibración por posición: imagen por unidad de posición (dos fotos quietas), velocidad a tres niveles de orden y sentido de cada eje para pasos y para órdenes continuas. Las calibraciones viejas se descartan y se repite al encender el seguimiento.
+- [x] El control pide una velocidad y el motor la convierte en orden con la curva medida.
+
+**Zona de vigilancia.**
+
+- [x] Límites de giro e inclinación y posición de reposo por cámara en `config.json`. El seguimiento y la búsqueda no salen; al perder a la persona regresa al reposo. El control a mano no se bloquea: la interfaz dice si quedó fuera.
+- [x] «Medir cobertura»: el motor recorre el alcance, guarda una foto por dirección y regresa. Las fotos son privadas.
+- [x] Editor en Cámaras: vivo, control de movimiento y mapa hecho con esas fotos. Los límites se arrastran o se fijan con «aquí»; tocar el mapa lleva la cámara. En vivo muestra el mismo mapa y «Ir al reposo».
+- [ ] Proponer los límites solos a partir de las fotos (detectar muro y cielo).
+
+**Caras.**
+
+- [x] El mejor cuadro se elige por nitidez y por qué tan de frente está (los cinco puntos de YuNet), además del tamaño.
+- [x] La cara se recorta de la grabación principal (1080p): al cerrar un avistamiento con cara, FFmpeg decodifica 1.7 s alrededor de ese instante, sólo el recuadro de la cabeza. Es la excepción puntual a «lo que decodifica usa `stream2`».
+- [x] Fusión de varios cuadros de la misma cara, alineados por sus puntos y con ajuste fino de un octavo de pixel. Quita ruido y bloques de compresión con información real; no inventa. Se guarda aparte y se rotula «combinada».
+- [x] Sin modelos que «restauran» caras: generan rasgos que no estaban en la imagen.
+- [ ] A decidir por el usuario: agrupar personas por la cara (SFace, local) en vez de sólo por ropa. Eso ya es reconocimiento facial.
+
+**Caras, segunda vuelta.** Aprobada por el usuario el 2026-11-15 tras su caminata de las 12:25. Lo medido en esa grabación: el 1080p iba clavado en su tope de 1228 kbps y la compresión borraba la cara aunque midiera 70 px; la app guardó un cuadro de perfil y mirando abajo cuando un segundo después había cuadros de frente; de día no hay barrido por obturador.
+
+- [x] Subir el 1080p a 2048 kbps (el máximo que admite la cámara). Son unos 9 GB más por día.
+- [x] Elegir la cara entre los tres mejores momentos del avistamiento, no uno solo, con una sola fórmula que castiga el perfil y la cabeza agachada y deja de premiar tanto el tamaño.
+- [x] Repetir la caminata y comparar contra la de las 12:25: caras de 84 y 63 px con menos bloques; mejora modesta, siguen los ojos en sombra y la vista desde arriba.
+- [x] Seguimiento: el giro se atascaba al alternar ejes cada 0.3 s; ahora los turnos duran de 0.8 a 1.6 s y el giro va primero. Falta probarlo caminando.
+- [ ] Ver por qué la caminata de las 12:58 no produjo «combinada».
+- [ ] Según lo que salga: probar H.265 a 2048 kbps (hay que confirmar el vivo y la Ronda en WebView2 y WebKit).
+- [ ] Súper-resolución de video con varios cuadros en la GPU, con modelo de licencia compatible con MIT. Usa cuadros reales; se espera 1.5–2× de detalle útil.
+- [x] Decidido por el usuario el 2026-11-15: sin restaurador de caras. Vio una demostración con GFPGAN sobre su propia cara y no lo convenció. Las caras se quedan como están.
+- [ ] La elección de cara no detecta una mano tapando los ojos (visto en la caminata de las 13:07).
+
+Sin servicios en la nube para mejorar caras (se descartó Gemini): mandaría caras de la calle fuera del equipo.
+
+**Imagen de la cámara.** Probado de día por el protocolo de Tapo: sólo la nitidez cambia la imagen; el rango dinámico amplio, el contraste, el brillo y la corrección de lente se guardan pero no la alteran en este modelo. La nitidez queda en Cámaras. El video principal sí se deja cambiar, con un `set` directo en vez de los métodos con nombre.
+
+**Interfaz.**
+
+- [x] Sin desbordes de 375 a 1280 px, medido en todas las vistas.
+
+**Límites honestos.** Con el lente de la C500 una cara mide unos 40 px de ancho a 5 m, 20 px a 10 m y 13 px a 15 m en el 1080p; por debajo de ~32 px identificar con certeza no es realista. La cámara no tiene zoom óptico. El seguimiento sigue sin probarse con una persona caminando.
+
+### 9 · Rediseño: turno de noche
+
+Aprobado por el usuario el 2026-11-15 sobre la propuesta de `propuesta_nocturna/`.
+
+- [x] Tema de caseta de velador con monitores, en noche y día, sin usar nada de un juego existente.
+- [x] Sereno, el perro velador, como logo: en la app, el favicon y los íconos de escritorio y bandeja.
+- [x] Sereno avisa con los ojos el estado real de la guardia y cuando la detección ve a alguien.
+- [x] Marco de monitor en el vivo, medidores de aguja con cobertura y disco, palanca para mover la cámara.
+- [x] Transiciones entre vistas, píldora que se desliza en el menú y apagón al cambiar de día a noche.
+- [x] Tipografías nuevas servidas localmente.
+- [x] Ícono propio de Windows, sin el margen de macOS, para que llene la barra de tareas y la bandeja; puesto en la app instalada.
+- [ ] Revisar a ojo en WebKit (la ventana de macOS) y a ancho de teléfono.
+- No se trajo de la propuesta: el plano de la casa y la pared de varios monitores (hoy hay una sola cámara), el sonido del monitor y la pantalla de las 6 AM.
+
 ## Disco externo
 
 Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.

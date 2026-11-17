@@ -79,9 +79,8 @@ public static class Endpoints
 	{
 		try
 		{
-			var full = Path.GetFullPath(dir);
-			var drive = DriveInfo.GetDrives().Where(d => d.IsReady && full.StartsWith(d.RootDirectory.FullName, StringComparison.Ordinal)).OrderByDescending(d => d.RootDirectory.FullName.Length).FirstOrDefault();
-			return drive is null ? null : new { totalBytes = drive.TotalSize, freeBytes = drive.AvailableFreeSpace };
+			var drive = new DriveInfo(RecordingStore.MountOf(Path.GetFullPath(dir), DriveInfo.GetDrives().Select(d => d.Name)));
+			return drive.IsReady ? new { totalBytes = drive.TotalSize, freeBytes = drive.AvailableFreeSpace } : null;
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
 		{

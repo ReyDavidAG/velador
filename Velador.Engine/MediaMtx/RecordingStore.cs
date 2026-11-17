@@ -30,7 +30,7 @@ public sealed class RecordingStore(Func<string> rootOf) : IRecordingStore
 
 	public (long TotalBytes, long FreeBytes) Disk()
 	{
-		var drive = new DriveInfo(MountOf(Path.GetFullPath(root), OperatingSystem.IsWindows() ? [] : DriveInfo.GetDrives().Select(d => d.Name)));
+		var drive = new DriveInfo(MountOf(Path.GetFullPath(root), DriveInfo.GetDrives().Select(d => d.Name)));
 		return (drive.TotalSize, drive.AvailableFreeSpace);
 	}
 

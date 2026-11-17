@@ -116,7 +116,7 @@ public sealed class ContinuityService(
 			var stalled = dog.InGap || !online;
 			var cameraUp = !stalled || await reachability.CameraAsync(camera.Host, camera.RtspPort, ct);
 			var gatewayUp = cameraUp || await reachability.GatewayAsync(ct);
-			var verdict = dog.Observe(new WatchdogSample(Now, paths is not null, online, path?.InboundBytes ?? 0, cameraUp, gatewayUp));
+			var verdict = dog.Observe(new WatchdogSample(Now, paths is not null, online, path?.InboundBytes ?? 0, cameraUp, gatewayUp, supervisor.Rejected(camera.Id)));
 			restart |= verdict.RestartMedia;
 			if (paused) continue;
 			if (verdict.Opened is { } opened)

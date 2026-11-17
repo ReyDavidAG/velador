@@ -68,13 +68,17 @@ public sealed class MediaMtxClient(HttpClient http, MediaPorts ports)
 			HttpCompletionOption.ResponseHeadersRead,
 			ct);
 
-	public async Task<bool> RecordAsync(string path, bool record, CancellationToken ct)
+	public Task<bool> RecordAsync(string path, bool record, CancellationToken ct) => PatchAsync(path, new { record }, ct);
+
+	public Task<bool> SourceAsync(string path, string source, CancellationToken ct) => PatchAsync(path, new { source }, ct);
+
+	async Task<bool> PatchAsync(string path, object change, CancellationToken ct)
 	{
 		using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		limit.CancelAfter(TimeSpan.FromSeconds(3));
 		try
 		{
-			using var content = new StringContent(record ? "{\"record\":true}" : "{\"record\":false}", System.Text.Encoding.UTF8, "application/json");
+			using var content = new StringContent(JsonSerializer.Serialize(change), System.Text.Encoding.UTF8, "application/json");
 			using var response = await http.PatchAsync($"{Api}/v3/config/paths/patch/{Uri.EscapeDataString(path)}", content, limit.Token);
 			return response.IsSuccessStatusCode;
 		}

@@ -57,10 +57,21 @@ public static class MediaMtxConfig
 		foreach (var camera in cameras)
 		{
 			if (password(camera) is not { Length: > 0 } secret) continue;
-			var auth = $"{Uri.EscapeDataString(camera.User)}:{Uri.EscapeDataString(secret)}";
-			env[$"MTX_PATHS_{camera.MediaPath(Camera.MainStream).ToUpperInvariant()}_SOURCE"] = $"rtsp://{auth}@{camera.Host}:{camera.RtspPort}/{camera.MainPath}";
-			env[$"MTX_PATHS_{camera.MediaPath(Camera.MinorStream).ToUpperInvariant()}_SOURCE"] = $"rtsp://{auth}@{camera.Host}:{camera.RtspPort}/{camera.MinorPath}";
+			foreach (var stream in new[] { Camera.MainStream, Camera.MinorStream })
+				env[$"MTX_PATHS_{camera.MediaPath(stream).ToUpperInvariant()}_SOURCE"] = Source(camera, stream, secret);
 		}
 		return env;
+	}
+
+	public static string Source(Camera camera, string stream, string secret) =>
+		$"rtsp://{Uri.EscapeDataString(camera.User)}:{Uri.EscapeDataString(secret)}@{camera.Host}:{camera.RtspPort}/{(stream == Camera.MainStream ? camera.MainPath : camera.MinorPath)}";
+
+	public static string? RejectedPath(string line)
+	{
+		const string open = "[path ";
+		if (!line.Contains("[RTSP source] bad status code: 401", StringComparison.Ordinal)) return null;
+		var start = line.IndexOf(open, StringComparison.Ordinal);
+		var end = start < 0 ? -1 : line.IndexOf(']', start);
+		return end < 0 ? null : line[(start + open.Length)..end];
 	}
 }

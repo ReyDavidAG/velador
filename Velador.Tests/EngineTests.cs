@@ -567,6 +567,24 @@ public class TpapTests
 	}
 }
 
+public class RejectedAccountTests
+{
+	[Fact]
+	public void A_401_from_the_camera_names_the_path_that_was_rejected()
+	{
+		Assert.Equal("entradamain", MediaMtxConfig.RejectedPath("2026/11/17 03:01:44 ERR [path entradamain] [RTSP source] bad status code: 401 (Unauthorized)"));
+		Assert.Null(MediaMtxConfig.RejectedPath("2026/11/17 03:01:44 ERR [path entradamain] [RTSP source] dial tcp 192.0.2.1:554: i/o timeout"));
+		Assert.Null(MediaMtxConfig.RejectedPath("2026/11/17 03:01:42 INF [path entradamain] [RTSP source] started"));
+	}
+
+	[Fact]
+	public void The_source_escapes_the_account_and_picks_the_stream()
+	{
+		var camera = new Camera("entrada", "Entrada", "192.0.2.10", "yo@casa");
+		Assert.Equal("rtsp://yo%40casa:a%2Fb@192.0.2.10:554/stream2", MediaMtxConfig.Source(camera, Camera.MinorStream, "a/b"));
+	}
+}
+
 public class LiveMp4Tests
 {
 	[Fact]

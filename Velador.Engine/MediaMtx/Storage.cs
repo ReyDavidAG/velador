@@ -91,7 +91,13 @@ public sealed class Storage(EngineSettings settings, string fallback, TimeProvid
 			return string.IsNullOrEmpty(root) ? null : root;
 		}
 		var parts = fullPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-		return parts is ["Volumes", var name, ..] ? $"/Volumes/{name}" : null;
+		return parts switch
+		{
+			["Volumes", var name, ..] => $"/Volumes/{name}",
+			["run", "media", var user, var name, ..] => $"/run/media/{user}/{name}",
+			["media", var user, var name, ..] => $"/media/{user}/{name}",
+			_ => null,
+		};
 	}
 
 	public static IReadOnlyList<VolumeInfo> Volumes()
@@ -103,7 +109,7 @@ public sealed class Storage(EngineSettings settings, string fallback, TimeProvid
 			{
 				if (!drive.IsReady || drive.TotalSize < 1L << 30) continue;
 				var path = drive.RootDirectory.FullName;
-				var external = OperatingSystem.IsWindows() ? drive.DriveType is DriveType.Removable or DriveType.Fixed && !path.StartsWith(Path.GetPathRoot(Environment.SystemDirectory)!, StringComparison.OrdinalIgnoreCase) : path.StartsWith("/Volumes/", StringComparison.Ordinal);
+				var external = OperatingSystem.IsWindows() ? drive.DriveType is DriveType.Removable or DriveType.Fixed && !path.StartsWith(Path.GetPathRoot(Environment.SystemDirectory)!, StringComparison.OrdinalIgnoreCase) : MountPoint(path) is not null;
 				if (external) list.Add(new VolumeInfo(OperatingSystem.IsWindows() ? path : Path.GetFileName(path.TrimEnd('/')), path, drive.TotalSize, drive.AvailableFreeSpace));
 			}
 			catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }

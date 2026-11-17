@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Velador.Core;
 using Velador.Engine.Secrets;
@@ -12,6 +13,11 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	bool _ranBefore;
 	GapCause _restartCause = GapCause.Engine;
 	int _configured;
+	readonly ConcurrentDictionary<string, long> _rejected = new();
+
+	public static readonly TimeSpan RejectedPause = TimeSpan.FromMinutes(10);
+
+	public bool Rejected(string cameraId) => _rejected.ContainsKey(cameraId);
 
 	public bool Adopted { get; private set; }
 	public bool Missing { get; private set; }
@@ -37,6 +43,7 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 				running = false;
 			}
 			if (settings.Cameras.Count > 0 && !running && await client.PathsAsync(ct) is null && !ct.IsCancellationRequested) Start();
+			if (running) await RetryRejectedAsync(ct);
 			await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}
@@ -55,6 +62,26 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	}
 
 	int Signature() => settings.Revision;
+
+	long Now => time.GetUtcNow().ToUnixTimeMilliseconds();
+
+	async Task HoldAsync(Camera camera)
+	{
+		log.LogWarning("The camera {Camera} rejected the account; waiting {Minutes} minutes before trying again", camera.Id, RejectedPause.TotalMinutes);
+		foreach (var stream in new[] { Camera.MainStream, Camera.MinorStream })
+			await client.SourceAsync(camera.MediaPath(stream), MediaMtxConfig.PlaceholderSource, CancellationToken.None);
+	}
+
+	async Task RetryRejectedAsync(CancellationToken ct)
+	{
+		foreach (var (id, at) in _rejected.ToArray())
+		{
+			if (Now - at < RejectedPause.TotalMilliseconds || !_rejected.TryRemove(id, out _)) continue;
+			if (settings.Cameras.FirstOrDefault(c => c.Id == id) is not { } camera || secrets.Get(id) is not { Length: > 0 } secret) continue;
+			foreach (var stream in new[] { Camera.MainStream, Camera.MinorStream })
+				await client.SourceAsync(camera.MediaPath(stream), MediaMtxConfig.Source(camera, stream, secret), ct);
+		}
+	}
 
 	bool IsRunning() => _process is { HasExited: false } || OwnedPid() is not null;
 
@@ -78,6 +105,7 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 			RedirectStandardError = true,
 		};
 		foreach (var (key, value) in MediaMtxConfig.SourceEnvironment(settings.Cameras, c => secrets.Get(c.Id))) info.Environment[key] = value;
+		_rejected.Clear();
 		_process = Process.Start(info);
 		if (_process is null) return;
 		Adopted = false;
@@ -105,6 +133,8 @@ public sealed class MediaSupervisor(EnginePaths paths, EngineSettings settings, 
 	{
 		if (line is null) return;
 		if (line.Contains(" ERR ") || line.Contains(" WAR ")) log.LogWarning("mediamtx: {Line}", line);
+		if (MediaMtxConfig.RejectedPath(line) is { } path && settings.Cameras.FirstOrDefault(c => path == c.MediaPath(Camera.MainStream) || path == c.MediaPath(Camera.MinorStream)) is { } camera && _rejected.TryAdd(camera.Id, Now))
+			_ = HoldAsync(camera);
 	}
 
 	Process? OwnedPid()

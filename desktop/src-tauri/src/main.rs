@@ -104,7 +104,20 @@ fn hide_window(window: &tauri::Window) {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("GST_PLUGIN_FEATURE_RANK").is_none() {
+        // Decode the live view on the integrated GPU and keep the discrete one asleep.
+        unsafe {
+            std::env::set_var(
+                "GST_PLUGIN_FEATURE_RANK",
+                "vah264dec:MAX,vah265dec:MAX,nvh264dec:NONE,nvh265dec:NONE",
+            )
+        };
+    }
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            show_window(app)
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()

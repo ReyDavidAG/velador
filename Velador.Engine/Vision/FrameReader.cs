@@ -132,6 +132,8 @@ public sealed class FrameReader : IDisposable
 
 		public long CapturedMs { get; } = capturedMs;
 
+		public ReadOnlySpan<byte> Luma => yuv.AsSpan(0, Width * Height);
+
 		public BgrFrame Frame => _frame ??= Convert();
 
 		BgrFrame Convert()

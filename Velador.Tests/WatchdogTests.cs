@@ -105,6 +105,16 @@ public class WatchdogTests
 	}
 
 	[Fact]
+	public void A_camera_that_refuses_the_stream_never_restarts_the_media_server()
+	{
+		var dog = new Watchdog();
+		dog.Observe(Flowing(0, 100));
+		for (var t = 1000; t <= 120_000; t += 1000)
+			Assert.False(dog.Observe(new WatchdogSample(t, true, false, 0, true, true)).RestartMedia);
+		Assert.True(dog.InGap);
+	}
+
+	[Fact]
 	public void A_restarted_counter_counts_as_progress()
 	{
 		var dog = new Watchdog();

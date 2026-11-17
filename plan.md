@@ -235,6 +235,16 @@ Aprobada por el usuario el 2026-11-13. Rama `feature/guard-plus`.
 
 **Límites honestos.** Si alguien cruza más rápido de lo que gira el motor de la cámara, ningún programa lo alcanza; la predicción reduce cuánto se le pierde. Detectar en CPU cuesta unos puntos de un núcleo; se mide y se dice.
 
+### Linux · vivo sin WebRTC
+
+WebKitGTK de Arch/CachyOS viene sin WebRTC (`RTCPeerConnection` no existe aunque se active). Cuando falta, el vivo va por MP4 fragmentado a MSE:
+
+- El motor abre un FFmpeg por cada vivo abierto, que copia el video (sin recodificar) del RTSP local de MediaMTX a MP4 con un fragmento por cuadro, y lo entrega en `GET /api/cameras/{id}/live.mp4?stream=main|minor` con la misma sesión. Al cerrar el vivo el FFmpeg se termina. El front sigue sin hablar con MediaMTX.
+- `live.js` mete esos fragmentos a `MediaSource` y se mantiene pegado al final: si se atrasa más de 0.8 s, salta. Con la ventana oculta más de un minuto, corta.
+- Se descartó el HLS de baja latencia de MediaMTX: con esta cámara los pedazos salían de 0.3 a 1 s y el retraso pasaba de 2 s.
+- Medido en esta PC en un navegador sin WebRTC contra el stream real: 1080p a 15 cps, entre 0.4 y 0.5 s detrás de lo recibido, sin errores. Falta medirlo en la ventana de Linux.
+- [ ] Sonido en ese vivo: el G.711 de la cámara no cabe en MP4 y pasarlo a AAC con FFmpeg falló al arrancar en las pruebas. macOS y Windows sí llevan sonido por WebRTC.
+
 ### 8 · Zona de vigilancia, seguimiento que sí sigue y caras más nítidas
 
 Aprobada por el usuario el 2026-11-15, con la cámara ya montada en su lugar. Rama `feature/zone-faces`.
@@ -294,6 +304,18 @@ Aprobado por el usuario el 2026-11-15 sobre la propuesta de `propuesta_nocturna/
 - [x] Ícono propio de Windows, sin el margen de macOS, para que llene la barra de tareas y la bandeja; puesto en la app instalada.
 - [ ] Revisar a ojo en WebKit (la ventana de macOS) y a ancho de teléfono.
 - No se trajo de la propuesta: el plano de la casa y la pared de varios monitores (hoy hay una sola cámara), el sonido del monitor y la pantalla de las 6 AM.
+
+### 10 · Detección fresca en Linux
+
+Aprobado por el usuario el 2026-11-16. Objetivo: que la laptop no se caliente. Medido hoy con nadie a la vista: la detección corre en CPU (núcleos eficientes 12-15) y cuesta ~190 ms por cuadro; el motor gasta ~47 % de un núcleo a 2.5 cps, contra ~5 % en Windows, donde la inferencia va en la GPU. Con alguien a la vista pide 10 cps y en CPU no llega.
+
+En orden: cada paso se mide antes de pasar al siguiente, y si con uno ya se cumple el objetivo, los demás no se hacen.
+
+- [x] **1. No inferir cuando nada cambia.** Sin nadie a la vista, YOLOX sólo corre si hay cambio en la imagen gris de 320×180 que ya se calcula (diferencia contra el cuadro anterior, fuera de la franja de la hora y del logo), y además una vez cada 3 s por si alguien entró muy despacio. Con alguien a la vista o siguiendo, sin cambios. No agrega dependencias y sirve igual en Windows y macOS. Meta: motor ≤ 10 % de un núcleo en reposo. Riesgo: de noche el ruido del infrarrojo y los insectos frente a la luz cuentan como cambio; el umbral se calibra con la grabación de esta noche.
+- [ ] **2. Inferencia en la Intel integrada (UHD de la i7-12650H) con OpenVINO**, sólo si con el paso 1 no se llega a 10 cps con alguien a la vista o el motor pasa de ~25 % mientras sigue. El paquete de ONNX Runtime con OpenVINO sólo trae binarios de Windows; en Linux se usaría el runtime de OpenVINO que publica Intel, bajado con suma verificada por `scripts/fetch_binaries.sh` igual que MediaMTX, y llamado desde una implementación de `PersonDetector` sobre la API C de OpenVINO. Requiere el paquete `intel-compute-runtime` del sistema; si falta o la GPU no arranca, sigue en CPU como hoy. Se mide el consumo de la Intel con `intel_gpu_top`, porque también decodifica el vivo.
+- [ ] **3. Modelo cuantizado (int8) en CPU**, como alternativa al paso 2 si OpenVINO resulta frágil: se mide primero que no pierda personas de noche.
+- **NVIDIA (RTX 4060): no se usa para la detección.** Despertarla para inferir 3–10 cuadros por segundo la deja encendida todo el tiempo (varios watts constantes contra ~2 W dormida), es lo que más calienta y CUDA pesa más de 1 GB. Se queda dormida a propósito, igual que para el vivo.
+- Medición de cada paso: CPU de motor, FFmpeg y MediaMTX, temperatura del paquete, cuadros por segundo con alguien a la vista, y que la NVIDIA siga en reposo.
 
 ## Disco externo
 

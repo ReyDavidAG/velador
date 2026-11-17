@@ -30,8 +30,16 @@ public sealed class RecordingStore(Func<string> rootOf) : IRecordingStore
 
 	public (long TotalBytes, long FreeBytes) Disk()
 	{
-		var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(root))!);
+		var drive = new DriveInfo(MountOf(Path.GetFullPath(root), DriveInfo.GetDrives().Select(d => d.Name)));
 		return (drive.TotalSize, drive.AvailableFreeSpace);
+	}
+
+	// GetPathRoot is "/" for any Unix path, which measured an external disk as the system disk.
+	public static string MountOf(string fullPath, IEnumerable<string> mounts)
+	{
+		var sep = Path.DirectorySeparatorChar;
+		return mounts.Where(m => fullPath == m || fullPath.StartsWith(m.TrimEnd(sep) + sep, StringComparison.Ordinal))
+			.MaxBy(m => m.Length) ?? Path.GetPathRoot(fullPath)!;
 	}
 
 	public void Delete(StoredSegment segment)

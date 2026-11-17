@@ -13,6 +13,7 @@ public sealed class PersonDetector : IDisposable
 	readonly string _input;
 	readonly Lock _lock = new();
 	readonly DenseTensor<float> _tensor = new([1, 3, Size, Size]);
+	bool _disposed;
 
 	public string Device { get; }
 
@@ -43,6 +44,7 @@ public sealed class PersonDetector : IDisposable
 	{
 		lock (_lock)
 		{
+			if (_disposed) return [];
 			var scale = Math.Min((double)Size / frame.Width, (double)Size / frame.Height);
 			Letterbox(frame, scale);
 			using var results = _session.Run([NamedOnnxValue.CreateFromTensor(_input, _tensor)]);
@@ -104,8 +106,14 @@ public sealed class PersonDetector : IDisposable
 		return kept;
 	}
 
+	// The vision loops may still be inside Run when the engine stops; freeing the session under them crashed it.
 	public void Dispose()
 	{
-		_session.Dispose();
+		lock (_lock)
+		{
+			if (_disposed) return;
+			_disposed = true;
+			_session.Dispose();
+		}
 	}
 }

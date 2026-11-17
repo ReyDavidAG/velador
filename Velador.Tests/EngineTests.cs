@@ -328,6 +328,9 @@ public class StorageTests : IDisposable
 	[InlineData("/Volumes/KINGSTON/Velador", "/Volumes/KINGSTON")]
 	[InlineData("/Volumes/Mi Disco/a/b", "/Volumes/Mi Disco")]
 	[InlineData("/Users/yo/Movies/Velador", null)]
+	[InlineData("/run/media/yo/KINGSTON/Velador", "/run/media/yo/KINGSTON")]
+	[InlineData("/media/yo/Mi Disco/a", "/media/yo/Mi Disco")]
+	[InlineData("/home/yo/Videos/Velador", null)]
 	public void The_mount_point_of_an_external_path_is_its_volume(string path, string? mount)
 	{
 		if (OperatingSystem.IsWindows()) return;
@@ -561,5 +564,47 @@ public class TpapTests
 		Assert.Equal(plain, AesCcm128.Open(key, nonce, expected));
 		expected[5] ^= 1;
 		Assert.Null(AesCcm128.Open(key, nonce, expected));
+	}
+}
+
+public class RejectedAccountTests
+{
+	[Fact]
+	public void A_401_from_the_camera_names_the_path_that_was_rejected()
+	{
+		Assert.Equal("entradamain", MediaMtxConfig.RejectedPath("2026/11/17 03:01:44 ERR [path entradamain] [RTSP source] bad status code: 401 (Unauthorized)"));
+		Assert.Null(MediaMtxConfig.RejectedPath("2026/11/17 03:01:44 ERR [path entradamain] [RTSP source] dial tcp 192.0.2.1:554: i/o timeout"));
+		Assert.Null(MediaMtxConfig.RejectedPath("2026/11/17 03:01:42 INF [path entradamain] [RTSP source] started"));
+	}
+
+	[Fact]
+	public void The_source_escapes_the_account_and_picks_the_stream()
+	{
+		var camera = new Camera("entrada", "Entrada", "192.0.2.10", "yo@casa");
+		Assert.Equal("rtsp://yo%40casa:a%2Fb@192.0.2.10:554/stream2", MediaMtxConfig.Source(camera, Camera.MinorStream, "a/b"));
+	}
+}
+
+public class LiveMp4Tests
+{
+	[Fact]
+	public void The_live_copy_never_reencodes_and_fragments_every_frame()
+	{
+		var args = Velador.Engine.Api.Endpoints.LiveMp4Arguments("rtsp://127.0.0.1:8357/entradamain");
+		Assert.Equal("copy", args[Array.IndexOf(args, "-c:v") + 1]);
+		Assert.Equal("rtsp://127.0.0.1:8357/entradamain", args[Array.IndexOf(args, "-i") + 1]);
+		Assert.Contains("frag_every_frame", args[Array.IndexOf(args, "-movflags") + 1]);
+		Assert.Equal("pipe:1", args[^1]);
+	}
+}
+
+public class LinuxServiceTests
+{
+	[Fact]
+	public void The_unit_pins_to_efficient_cores_only_when_there_are_some()
+	{
+		Assert.Contains("AllowedCPUs=12-15\n", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", "12-15\n"));
+		Assert.DoesNotContain("AllowedCPUs", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", null));
+		Assert.Contains("ExecStart=\"/opt/v/Velador.Engine\"", Velador.Engine.Cli.Commands.UnitFile("/opt/v/Velador.Engine", null));
 	}
 }

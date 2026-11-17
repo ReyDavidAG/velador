@@ -205,6 +205,7 @@ public static class ManageEndpoints
 		if (database.Clips().FirstOrDefault(c => c.Id == clipId) is not { } clip || !File.Exists(clip.File)) return Results.NotFound();
 		if (OperatingSystem.IsMacOS()) Process.Start(new ProcessStartInfo("/usr/bin/open", ["-R", clip.File]) { UseShellExecute = false })?.Dispose();
 		else if (OperatingSystem.IsWindows()) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{clip.File}\"") { UseShellExecute = false })?.Dispose();
+		else Process.Start(new ProcessStartInfo("xdg-open", [Path.GetDirectoryName(clip.File)!]) { UseShellExecute = false })?.Dispose();
 		return Results.NoContent();
 	}
 }

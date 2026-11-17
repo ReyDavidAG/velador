@@ -169,3 +169,31 @@ public class YuvTests
 		Assert.InRange(bgr[2], 0, 10);
 	}
 }
+
+public class DetectorShutdownTests
+{
+	static string? Model(string name)
+	{
+		for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+		{
+			var file = Path.Combine(dir.FullName, "tools", "models", name);
+			if (File.Exists(file)) return file;
+		}
+		return null;
+	}
+
+	[Fact]
+	public async Task Disposing_while_detecting_waits_and_later_calls_return_nothing()
+	{
+		if (Model("yolox_tiny.onnx") is not { } model) return;
+		var detector = new Velador.Engine.Vision.PersonDetector(model);
+		var frame = new BgrFrame(new byte[1280 * 720 * 3], 1280, 720, 0);
+		using var stop = new CancellationTokenSource();
+		var loop = Task.Run(() => { while (!stop.IsCancellationRequested) detector.Detect(frame); });
+		await Task.Delay(200);
+		detector.Dispose();
+		Assert.Empty(detector.Detect(frame));
+		stop.Cancel();
+		await loop;
+	}
+}

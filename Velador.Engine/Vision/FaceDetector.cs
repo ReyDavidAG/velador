@@ -12,6 +12,7 @@ public sealed class FaceDetector : IDisposable
 	readonly InferenceSession _session;
 	readonly Lock _lock = new();
 	readonly DenseTensor<float> _tensor = new([1, 3, Size, Size]);
+	bool _disposed;
 
 	public FaceDetector(string modelFile)
 	{
@@ -40,6 +41,7 @@ public sealed class FaceDetector : IDisposable
 	{
 		lock (_lock)
 		{
+			if (_disposed) return null;
 			var scale = Math.Min((double)Size / width, (double)Size / height);
 			var span = _tensor.Buffer.Span;
 			span.Clear();
@@ -86,5 +88,14 @@ public sealed class FaceDetector : IDisposable
 		}
 	}
 
-	public void Dispose() => _session.Dispose();
+	// Same as PersonDetector: wait for an in-flight Run before freeing the session.
+	public void Dispose()
+	{
+		lock (_lock)
+		{
+			if (_disposed) return;
+			_disposed = true;
+			_session.Dispose();
+		}
+	}
 }

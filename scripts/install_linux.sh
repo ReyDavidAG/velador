@@ -15,9 +15,13 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 for tool in ffmpeg secret-tool systemd-inhibit; do
 	command -v "$tool" >/dev/null || { echo "Falta $tool" >&2; exit 1; }
 done
-for element in autoaudiosink rtpbin webrtcbin; do
-	gst-inspect-1.0 --exists "$element" || { echo "Falta el elemento GStreamer $element (en Arch: gst-plugins-base gst-plugins-good gst-plugins-bad)" >&2; exit 1; }
+has() { gst-inspect-1.0 --exists "$1"; }
+for element in autoaudiosink qtdemux h264parse; do
+	has "$element" || { echo "Falta el elemento GStreamer $element (en Arch: gst-plugins-base gst-plugins-good gst-plugins-bad)" >&2; exit 1; }
 done
+has vah264dec || has avdec_h264 || has openh264dec || { echo "Falta un decodificador H.264 para el vivo y la Ronda (en Arch: gst-plugin-va o gst-libav)" >&2; exit 1; }
+has avdec_aac || has fdkaacdec || has faad || echo "Aviso: sin decodificador AAC la Ronda se oye en silencio (en Arch: gst-libav)" >&2
+ldconfig -p | grep -q -E 'libayatana-appindicator3|libappindicator3' || { echo "Falta la biblioteca del icono de la bandeja (en Arch: libayatana-appindicator)" >&2; exit 1; }
 if command -v ufw >/dev/null && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null && ! grep -q 'sport 3702' /etc/ufw/user.rules 2>/dev/null; then
 	echo "Aviso: ufw bloquea la búsqueda de cámaras. Permítela con: sudo ufw allow proto udp from 192.168.0.0/16 port 3702" >&2
 fi
@@ -33,7 +37,10 @@ cp -R web "$DEST/web" && cp -R tools/models "$DEST/models"
 [ -d node_modules ] || npm ci --no-audit --no-fund
 npx tauri build --no-bundle --config desktop/src-tauri/tauri.conf.json >/dev/null
 install -Dm755 desktop/src-tauri/target/release/velador-desktop "$HOME/.local/bin/velador"
+install -Dm644 desktop/src-tauri/icons/32x32.png "$SHARE/icons/hicolor/32x32/apps/velador.png"
 install -Dm644 desktop/src-tauri/icons/128x128.png "$SHARE/icons/hicolor/128x128/apps/velador.png"
+install -Dm644 "desktop/src-tauri/icons/128x128@2x.png" "$SHARE/icons/hicolor/256x256/apps/velador.png"
+install -Dm644 desktop/src-tauri/icons/icon.png "$SHARE/icons/hicolor/512x512/apps/velador.png"
 install -Dm644 /dev/stdin "$SHARE/applications/velador.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
@@ -42,6 +49,8 @@ Comment=Graba y cuida tu cámara IP sin nube
 Exec=$HOME/.local/bin/velador
 Icon=velador
 Categories=Video;Utility;
-StartupWMClass=velador-desktop
+StartupWMClass=velador
 DESKTOP
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t -f "$SHARE/icons/hicolor" 2>/dev/null || true
+command -v update-desktop-database >/dev/null && update-desktop-database -q "$SHARE/applications" 2>/dev/null || true
 echo "Velador $VERSION instalado. Ábrelo desde el menú o con: ~/.local/bin/velador"

@@ -281,6 +281,20 @@ Sin servicios en la nube para mejorar caras (se descartó Gemini): mandaría car
 
 **Límites honestos.** Con el lente de la C500 una cara mide unos 40 px de ancho a 5 m, 20 px a 10 m y 13 px a 15 m en el 1080p; por debajo de ~32 px identificar con certeza no es realista. La cámara no tiene zoom óptico. El seguimiento sigue sin probarse con una persona caminando.
 
+### 9 · Rediseño: turno de noche
+
+Aprobado por el usuario el 2026-11-15 sobre la propuesta de `propuesta_nocturna/`.
+
+- [x] Tema de caseta de velador con monitores, en noche y día, sin usar nada de un juego existente.
+- [x] Sereno, el perro velador, como logo: en la app, el favicon y los íconos de escritorio y bandeja.
+- [x] Sereno avisa con los ojos el estado real de la guardia y cuando la detección ve a alguien.
+- [x] Marco de monitor en el vivo, medidores de aguja con cobertura y disco, palanca para mover la cámara.
+- [x] Transiciones entre vistas, píldora que se desliza en el menú y apagón al cambiar de día a noche.
+- [x] Tipografías nuevas servidas localmente.
+- [ ] Reinstalar la app de escritorio para que tome los íconos nuevos.
+- [ ] Revisar a ojo en WebKit (la ventana de macOS) y a ancho de teléfono.
+- No se trajo de la propuesta: el plano de la casa y la pared de varios monitores (hoy hay una sola cámara), el sonido del monitor y la pantalla de las 6 AM.
+
 ## Disco externo
 
 Hecho en 0.1.0. Se elige en Ajustes entre la Mac, un disco conectado o una ruta.

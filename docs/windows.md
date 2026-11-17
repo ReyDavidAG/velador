@@ -40,6 +40,17 @@ Antes de probar el seguimiento: en la app Tapo apaga el **seguimiento de movimie
 10. **Calidad:** el botón «1080p · 15 cps» en la barra del video abre «Alta» o «Ligera»; abajo dice lo que llega en ese momento.
 11. **Pantalla completa:** el control de movimiento, la pausa y «Seguir personas» también están ahí.
 
+## Lo nuevo de la fase 8 y cómo probarlo (2026-11-15)
+
+1. **Flechas:** En vivo › «arriba» sube y «derecha» va a la derecha.
+2. **Zona:** Cámaras › «Ajustar zona». Arrastra un límite en el mapa o lleva la cámara y usa «Límite … aquí»; «Guardar zona». Tocar el mapa lleva la cámara ahí.
+3. **Seguir personas:** con el seguimiento encendido, camina frente a la cámara. Debe seguirte sin pasar de los límites («En el límite de la zona») y regresar al reposo unos 8 s después de perderte.
+4. **Caras:** tras pasar de frente, Personas muestra «Mejor cuadro» con su tamaño en px y, si hubo varios cuadros buenos, «Combinada de varios cuadros».
+5. **Nitidez:** Cámaras › «Nitidez de la imagen». Compara «Normal» y «Media» de día y de noche.
+6. **Ventana a medio tamaño:** nada debe salirse ni pedir desplazamiento horizontal.
+
+Si mueves la cámara de lugar: Ajustes › «Calibrar el movimiento» y Cámaras › «Medir cobertura».
+
 Cifras medidas en esta PC: detección en la tarjeta gráfica (DirectML), motor 11 % y FFmpeg 16 % de un núcleo con alguien a la vista; el video para la detección llega con 1.56 s de retraso.
 
 ## Cómo compilar e instalar en la PC

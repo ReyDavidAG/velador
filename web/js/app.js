@@ -55,6 +55,7 @@ const shell = () => `
 	</div>`
 
 let cleanup = null
+let loadedWeb = null
 
 const applyTheme = () => {
 	document.documentElement.dataset.theme = state.theme
@@ -73,6 +74,8 @@ const tickGuard = async () => {
 		document.querySelector('[data-guard-top]').lastChild.textContent = 'Motor sin respuesta'
 		return
 	}
+	if (state.summary.web && loadedWeb && state.summary.web !== loadedWeb && !document.fullscreenElement) return location.reload()
+	loadedWeb ??= state.summary.web
 	const cam = state.camera
 	if (!cam) return
 	if (state.summary.storage?.onFallback) document.querySelector('[data-guard-sub]').dataset.fallback = '1'

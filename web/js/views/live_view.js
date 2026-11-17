@@ -1,4 +1,5 @@
 import { roundHtml, setCursor } from '../components/round_timeline.js'
+import { mountZoneMap, zoneMapHtml } from '../components/zone_map.js'
 import { attachZoom, zoomClick, zoomControls, zoomLabel } from '../components/zoom.js'
 import { api } from '../services/api.js'
 import { watchLive } from '../services/live.js'
@@ -62,7 +63,7 @@ const html = () => `<div class="live-grid">
 			<div data-mini></div>
 		</section>
 	</div>
-	<aside class="rail"><section class="card" data-guard>${guardHtml()}</section><section class="card">${PAD}</section></aside>
+	<aside class="rail"><section class="card" data-guard>${guardHtml()}</section><section class="card">${PAD}</section><section class="card zone-card" data-zone-card><header class="card-head"><h2>Hacia dónde ve</h2><span class="chip" data-zone-chip hidden></span></header>${zoneMapHtml(true)}<div class="form-row zone-card-row"><button class="btn small" type="button" data-go-home hidden>${I.home}<span>Ir al reposo</span></button><span class="spacer"></span><a class="link" href="#/cameras">Ajustar zona ${I.arrow}</a></div><p class="muted-s">Toca el mapa para llevar la cámara ahí.</p></section></aside>
 </div>`
 
 const mount = main => {
@@ -186,7 +187,7 @@ const mount = main => {
 		followBtn.querySelector('span').textContent = v.following ? 'Siguiendo' : 'Seguir personas'
 		followChip.hidden = !v.following
 		followChip.classList.toggle('wait', v.manualHold || v.coasting || v.returning || v.targetId == null)
-		followChip.innerHTML = `${I.person}<span>${v.manualHold ? 'Movimiento manual · ésta será la posición de inicio' : v.returning ? 'Regresando a la posición de inicio' : v.coasting ? 'Buscando hacia donde se fue' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
+		followChip.innerHTML = `${I.person}<span>${v.manualHold ? (v.zone ? 'Movimiento manual · espera 10 s' : 'Movimiento manual · ésta será la posición de inicio') : v.returning ? 'Regresando al reposo' : v.atLimit ? 'En el límite de la zona' : v.coasting ? 'Buscando hacia donde se fue' : v.targetId != null ? 'Siguiendo' : 'Esperando a alguien'}</span>`
 		const tracks = ready ? v.tracks : []
 		boxes.hidden = !tracks.length || !placeBoxes()
 		if (boxes.hidden) return
@@ -208,7 +209,7 @@ const mount = main => {
 		followBtn.disabled = true
 		const calibrating = on && !vision?.calibration
 		if (calibrating) {
-			followBtn.querySelector('span').textContent = 'Calibrando… unos 30 s'
+			followBtn.querySelector('span').textContent = 'Calibrando… cerca de un minuto'
 			toast('Calibrando: la cámara va a girar un poco y regresar')
 		}
 		try {
@@ -222,6 +223,38 @@ const mount = main => {
 	}
 	pollVision()
 	const visionTick = setInterval(pollVision, 300)
+	const zoneCard = main.querySelector('[data-zone-card]')
+	const zoneChip = main.querySelector('[data-zone-chip]')
+	const homeBtn = main.querySelector('[data-go-home]')
+	let zoneNow = null
+	const goTo = async (x, y) => {
+		try {
+			await api.goTo(state.camera.id, x, y)
+		} catch (err) {
+			toast(err.message.startsWith('http') ? 'La cámara no respondió al movimiento' : err.message)
+		}
+	}
+	const zoneMap = mountZoneMap(zoneCard, { cameraId: state.camera.id, onGo: goTo })
+	let zoneBusy = false
+	const pollZone = async () => {
+		if (zoneBusy || document.hidden) return
+		zoneBusy = true
+		try {
+			const z = await api.zone(state.camera.id)
+			if (alive) {
+				zoneNow = z.zone
+				zoneMap.setZone(z.zone)
+				zoneMap.show(z)
+				homeBtn.hidden = !z.zone
+				zoneChip.hidden = !z.zone && !z.busy
+				zoneChip.className = `chip ${z.busy ? '' : z.inside ? 'good' : 'warn'}`
+				zoneChip.innerHTML = `<i class="dot"></i>${z.busy ? 'Midiendo…' : z.inside ? 'Dentro de la zona' : 'Fuera de la zona'}`
+			}
+		} catch {}
+		zoneBusy = false
+	}
+	pollZone()
+	const zoneTick = setInterval(pollZone, 1500)
 	const zoom = attachZoom(stage, () => [video, boxes], { rotated: () => state.camera.rotation === 180, onChange: s => zoomLabel(stage, s) })
 	const lightBtn = main.querySelector('[data-light]')
 	const showLight = on => {
@@ -346,6 +379,7 @@ const mount = main => {
 			save.disabled = false
 		}
 		if (e.target.closest('[data-follow]')) return setFollow(followBtn.getAttribute('aria-pressed') !== 'true')
+		if (e.target.closest('[data-go-home]') && zoneNow) return goTo(zoneNow.homeX, zoneNow.homeY)
 		if (e.target.closest('[data-light]')) {
 			lightBtn.disabled = true
 			try {
@@ -377,6 +411,8 @@ const mount = main => {
 		clearInterval(tick)
 		clearInterval(poll)
 		clearInterval(visionTick)
+		clearInterval(zoneTick)
+		zoneMap.destroy()
 		zoom.destroy()
 		held = null
 		clearTimeout(idleTimer)

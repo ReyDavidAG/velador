@@ -16,6 +16,7 @@ public sealed class EngineSettings
 	public bool DetectPeople { get; set; } = true;
 	public List<string> Follow { get; set; } = [];
 	public Dictionary<string, PtzCalibration> Calibrations { get; set; } = [];
+	public Dictionary<string, Velador.Core.Vision.PtzZone> Zones { get; set; } = [];
 
 	[System.Text.Json.Serialization.JsonIgnore]
 	public int Revision { get; set; }
@@ -33,7 +34,17 @@ public sealed class EngineSettings
 	public void Save(EnginePaths paths) => File.WriteAllText(paths.Settings, JsonSerializer.Serialize(this, Json));
 }
 
-public sealed record PtzCalibration(double GainX, double GainY, double LagS, bool InvertX, bool InvertY, bool Continuous, long AtMs);
+public sealed record PtzCalibration(
+	double GainX, double GainY, double LagS, bool InvertX, bool InvertY, bool Continuous, long AtMs,
+	int Version = 1, double ViewPerX = 0, double ViewPerY = 0, double[]? Levels = null, double[]? RatesX = null, double[]? RatesY = null, double ActS = 0.3, bool BothAxes = true)
+{
+	public const int Current = 4;
+
+	public Velador.Core.Vision.SpeedCurve CurveX => new(Levels ?? [], (RatesX ?? []).Select(Math.Abs).ToList());
+	public Velador.Core.Vision.SpeedCurve CurveY => new(Levels ?? [], (RatesY ?? []).Select(Math.Abs).ToList());
+	public int TurnX => Math.Sign((RatesX ?? []).LastOrDefault()) is var s && s != 0 ? s : 1;
+	public int TurnY => Math.Sign((RatesY ?? []).LastOrDefault()) is var s && s != 0 ? s : 1;
+}
 
 public sealed class EnginePaths
 {
@@ -85,6 +96,7 @@ public sealed class EnginePaths
 	}
 
 	public string Sightings => Path.Combine(Home, "sightings");
+	public string Coverage => Path.Combine(Home, "coverage");
 
 	public static string? WebRoot()
 	{

@@ -172,7 +172,13 @@ public sealed class TapoClient(string host, string password) : IDisposable
 			: (null, outer["error_code"]?.GetValue<int>() ?? -1);
 	}
 
-	public async Task<JsonNode> CallAsync(string method, JsonNode parameters, CancellationToken ct)
+	public Task<JsonNode> CallAsync(string method, JsonNode parameters, CancellationToken ct) =>
+		SendAsync(new JsonObject { ["method"] = "multipleRequest", ["params"] = new JsonObject { ["requests"] = new JsonArray(new JsonObject { ["method"] = method, ["params"] = parameters.DeepClone() }) } }, answer => answer["result"]?["responses"]?[0], ct);
+
+	public Task SetAsync(string section, JsonNode values, CancellationToken ct) =>
+		SendAsync(new JsonObject { ["method"] = "set", [section] = values.DeepClone() }, answer => answer, ct);
+
+	async Task<JsonNode> SendAsync(JsonObject inner, Func<JsonNode, JsonNode?> pick, CancellationToken ct)
 	{
 		await _gate.WaitAsync(ct);
 		try
@@ -180,11 +186,10 @@ public sealed class TapoClient(string host, string password) : IDisposable
 			for (var attempt = 0; ; attempt++)
 			{
 				if (!LoggedIn) await LoginAsync(ct);
-				var inner = new JsonObject { ["method"] = "multipleRequest", ["params"] = new JsonObject { ["requests"] = new JsonArray(new JsonObject { ["method"] = method, ["params"] = parameters.DeepClone() }) } };
 				var (answer, code) = await RoundTripAsync(inner.ToJsonString(Plain), ct);
 				if (answer is not null)
 				{
-					var one = answer["result"]?["responses"]?[0];
+					var one = pick(answer);
 					code = one?["error_code"]?.GetValue<int>() ?? answer["error_code"]?.GetValue<int>() ?? 0;
 					if (code == 0 && one is not null) return one["result"] ?? one;
 				}
@@ -205,6 +210,26 @@ public sealed class TapoClient(string host, string password) : IDisposable
 	}
 
 	static JsonNode Node(string json) => JsonNode.Parse(json)!;
+
+	public Task<JsonNode> QueryAsync(string method, string json, CancellationToken ct) => CallAsync(method, Node(json), ct);
+
+	public async Task<(JsonNode Common, JsonNode Switch, JsonNode Main, JsonNode Capability)> PictureAsync(CancellationToken ct)
+	{
+		var image = await CallAsync("getLdc", Node("""{"image":{"name":["switch","common"]}}"""), ct);
+		var video = await CallAsync("getVideoQualities", Node("""{"video":{"name":["main"]}}"""), ct);
+		var capability = await CallAsync("getVideoCapability", Node("""{"video_capability":{"name":"main"}}"""), ct);
+		return (
+			image["image"]?["common"] ?? throw new TapoException("La cámara no entregó sus ajustes de imagen."),
+			image["image"]?["switch"] ?? throw new TapoException("La cámara no entregó sus ajustes de imagen."),
+			video["video"]?["main"] ?? throw new TapoException("La cámara no entregó sus ajustes de video."),
+			capability["video_capability"]?["main"] ?? new JsonObject());
+	}
+
+	public Task SetCommonAsync(string key, string value, CancellationToken ct) =>
+		CallAsync("setLightFrequencyInfo", new JsonObject { ["image"] = new JsonObject { ["common"] = new JsonObject { [key] = value } } }, ct);
+
+	public Task SetVideoAsync(string key, string value, CancellationToken ct) =>
+		SetAsync("video", new JsonObject { ["main"] = new JsonObject { [key] = value } }, ct);
 
 	public async Task<(bool On, int RestSeconds)> LightAsync(CancellationToken ct)
 	{

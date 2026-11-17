@@ -1,211 +1,275 @@
 namespace Velador.Core.Vision;
 
-public sealed record FollowTuning(
-	double GainX = 0.30,
-	double GainY = 0.25,
-	double LagS = 0.8,
-	double HorizonS = 0.0,
-	double SettleS = 1.0,
-	double DeadZoneX = 0.08,
-	double DeadZoneY = 0.15,
-	double AimY = 0.42,
-	double MaxSpeed = 0.8,
-	double MaxAccel = 2.5,
-	double MinSpeed = 0.12,
-	double TiltBelowHeight = 0.6,
-	double WorldNoise = 0.3,
-	double CoastS = 4.0,
-	double ReacquireDistance = 0.3,
-	double SearchSpeed = 0.7,
-	double EdgeOffset = 0.2);
-
-public readonly record struct PtzSpeed(double X, double Y)
+public readonly record struct PtzRate(double X, double Y)
 {
-	public static readonly PtzSpeed Zero = new(0, 0);
+	public static readonly PtzRate Zero = new(0, 0);
 	public bool IsZero => X == 0 && Y == 0;
+
 }
 
-public sealed class FollowController(FollowTuning? tuning = null)
+public sealed class AxisTurn(double boost = AxisTurn.Boost)
 {
-	readonly FollowTuning _t = tuning ?? new FollowTuning();
-	readonly List<(long AtMs, PtzSpeed Speed)> _sent = [];
-	(long AtMs, double X, double Y) _base = (-1, 0, 0);
-	long _lastMs = -1;
-	long _seenMs = -1;
-	int? _targetId;
-	KalmanAxis? _wx, _wy;
-	bool _engagedX, _engagedY;
-	double _lastImageX;
+	public const double Boost = 1.5;
+	public const int HoldMs = 800;
+	public const int LongMs = 1600;
+	const double PanFirst = 1.3;
 
-	public long LastTargetMs { get; private set; } = -1;
+	bool _pan = true;
+	long _sinceMs;
 
-	public PtzSpeed Command { get; private set; } = PtzSpeed.Zero;
-	public FollowTuning Tuning => _t;
-
-	public static TrackState? PickTarget(IReadOnlyList<TrackState> tracks, int? currentId)
+	public PtzRate Step(PtzRate rate, long nowMs, double maxX, double maxY)
 	{
-		if (currentId is { } id && tracks.FirstOrDefault(t => t.Id == id) is { } same) return same;
-		return tracks.Where(t => t.SeenNow).OrderByDescending(t => t.Box.Area * t.Score).FirstOrDefault();
-	}
-
-	public bool Coasting { get; private set; }
-
-	public TrackState? Pick(IReadOnlyList<TrackState> tracks, long nowMs)
-	{
-		if (_targetId is { } id && tracks.FirstOrDefault(t => t.Id == id) is { } same) return same;
-		var seen = tracks.Where(t => t.SeenNow).ToList();
-		if (_wx is not null && _lastSeenAtMs >= 0 && nowMs - _lastSeenAtMs <= _t.CoastS * 1000)
+		if (rate.X == 0 || rate.Y == 0)
 		{
-			var (seenX, _) = Travel(nowMs - (long)(_t.LagS * 1000));
-			var near = seen
-				.Select(t => (Track: t, Distance: Math.Abs(t.Box.Cx - 0.5 + _t.GainX * seenX - _wx.Position)))
-				.Where(c => c.Distance <= _t.ReacquireDistance)
-				.OrderBy(c => c.Distance)
-				.FirstOrDefault();
-			if (near.Track is not null)
+			if (!rate.IsZero && _pan != (rate.X != 0))
 			{
-				_targetId = near.Track.Id;
-				return near.Track;
+				_pan = rate.X != 0;
+				_sinceMs = nowMs;
 			}
-			return null;
+			return rate;
 		}
-		return seen.OrderByDescending(t => t.Box.Area * t.Score).FirstOrDefault();
+		var pan = Math.Abs(rate.X) / maxX * PanFirst;
+		var tilt = Math.Abs(rate.Y) / maxY;
+		var (mine, other) = _pan ? (pan, tilt) : (tilt, pan);
+		var held = nowMs - _sinceMs;
+		if (held >= HoldMs && other > mine || held >= LongMs && other > 0.3)
+		{
+			_pan = !_pan;
+			_sinceMs = nowMs;
+		}
+		return _pan ? new PtzRate(Math.Clamp(rate.X * boost, -maxX, maxX), 0) : new PtzRate(0, Math.Clamp(rate.Y * boost, -maxY, maxY));
+	}
+}
+
+public sealed record FollowGeometry(double ViewPerX, double ViewPerY, double LagS, double ActuationS, double MaxRateX, double MaxRateY, double TopRateX = 0, double TopRateY = 0);
+
+public sealed record FollowTrace(long AtMs, string State, double CamX, double CamY, int? Target, double ImageX, double ImageY, double PersonX, double PersonRate, double AimX, double AimY, double RateX, double RateY, double LagS);
+
+public sealed class PathFollower
+{
+	const double AimInBox = 0.3;
+	const double AimInImage = 0.45;
+	const double GainX = 1.1;
+	const double GainY = 1.0;
+	const double DeadX = 0.07;
+	const double DeadY = 0.12;
+	const double AccelX = 1.2;
+	const double AccelY = 1.0;
+	const double CoastS = 3.0;
+	const double MinTrackS = 0.8;
+	const double MinRate = 0.012;
+	const double MaxPersonRate = 0.3;
+	const double MaxOffTheRoute = 0.15;
+	const double ReacquireWidths = 0.35;
+	const long HistoryMs = 8000;
+	const long MaxBackdateMs = 1000;
+	const double PoseDoubtS = 0.25;
+	static readonly double[] LagOffsets = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45];
+
+	readonly Lock _lock = new();
+	readonly List<(long AtMs, double X, double Y)> _poses = [];
+	readonly KalmanAxis?[] _guesses = new KalmanAxis?[LagOffsets.Length];
+	readonly double[] _misses = new double[LagOffsets.Length];
+	int _best = LagOffsets.Length / 2;
+	FollowGeometry? _geometry;
+	PtzZone? _zone;
+	KalmanAxis? _person;
+	int? _targetId;
+	long _seenStamp = -1;
+	long _measuredMs = -1;
+	long _firstMs = -1;
+	long _lastStepMs = -1;
+	double _offRoute;
+	double _freeY;
+	bool _movingX, _movingY;
+
+	public PtzRate Rate { get; private set; } = PtzRate.Zero;
+	public bool Coasting { get; private set; }
+	public int? TargetId => _targetId;
+	public FollowTrace? Trace { get; private set; }
+
+	public void Configure(FollowGeometry geometry, PtzZone? zone)
+	{
+		lock (_lock)
+		{
+			_geometry = geometry;
+			_zone = zone;
+		}
 	}
 
-	public PtzSpeed Step(TrackState? target, long nowMs)
+	public void Pose(long atMs, double x, double y)
 	{
-		var dt = _lastMs < 0 ? 0.1 : Math.Clamp((nowMs - _lastMs) / 1000.0, 0.02, 0.5);
-		_lastMs = nowMs;
-		if (_base.AtMs < 0) _base = (nowMs, 0, 0);
-		Coasting = false;
-		var desired = target is not null ? Desired(target, nowMs, dt) : Coast(nowMs, dt);
-		var step = _t.MaxAccel * dt;
-		if (Math.Sign(desired.X) == -Math.Sign(Command.X) && Math.Abs(desired.X) < 0.3) desired = desired with { X = 0 };
-		if (Math.Sign(desired.Y) == -Math.Sign(Command.Y) && Math.Abs(desired.Y) < 0.3) desired = desired with { Y = 0 };
-		var x = Command.X + Math.Clamp(desired.X - Command.X, -step, step);
-		var y = Command.Y + Math.Clamp(desired.Y - Command.Y, -step, step);
-		if (desired.X == 0 && Math.Abs(x) < _t.MinSpeed) x = 0;
-		if (desired.Y == 0 && Math.Abs(y) < _t.MinSpeed) y = 0;
-		Command = new PtzSpeed(x, y);
-		_sent.Add((nowMs, Command));
-		Prune(nowMs - (long)(_t.LagS * 1000) - 3000);
-		return Command;
+		lock (_lock)
+		{
+			if (_poses.Count > 0 && _geometry is { TopRateX: > 0, TopRateY: > 0 } g)
+			{
+				var last = _poses[^1];
+				var needMs = (long)Math.Min(MaxBackdateMs, 1000 * Math.Max(Math.Abs(x - last.X) / (g.TopRateX * 1.15), Math.Abs(y - last.Y) / (g.TopRateY * 1.15)));
+				var startMs = atMs - needMs;
+				if (startMs < last.AtMs && PoseAt(startMs) is { } start)
+				{
+					_poses.RemoveAll(p => p.AtMs >= startMs);
+					_poses.Add((startMs, start.X, start.Y));
+				}
+			}
+			_poses.Add((atMs, x, y));
+			while (_poses.Count > 2 && _poses[1].AtMs < atMs - HistoryMs) _poses.RemoveAt(0);
+		}
 	}
 
 	public void Reset()
 	{
-		Command = PtzSpeed.Zero;
-		_sent.Clear();
-		_base = (-1, 0, 0);
-		_lastMs = -1;
+		lock (_lock)
+		{
+			Rate = PtzRate.Zero;
+			Coasting = false;
+			Drop();
+			_seenStamp = _lastStepMs = -1;
+		}
+	}
+
+	void Drop()
+	{
+		_person = null;
+		Array.Clear(_guesses);
 		_targetId = null;
-		_wx = _wy = null;
-		_engagedX = _engagedY = false;
-		_lastSeenAtMs = -1;
-		_lastImageX = 0;
+		_measuredMs = _firstMs = -1;
+		_offRoute = _freeY = 0;
+		_movingX = _movingY = false;
 	}
 
-	long _lastSeenAtMs = -1;
-
-	PtzSpeed Coast(long nowMs, double dt)
+	(double X, double Y)? PoseAt(long atMs)
 	{
-		if (_wx is null || _wy is null || _lastSeenAtMs < 0 || nowMs - _lastSeenAtMs > _t.CoastS * 1000)
+		if (_poses.Count == 0) return null;
+		if (atMs <= _poses[0].AtMs) return (_poses[0].X, _poses[0].Y);
+		for (var i = 1; i < _poses.Count; i++)
 		{
-			_wx = _wy = null;
-			_targetId = null;
-			_engagedX = _engagedY = false;
-			return PtzSpeed.Zero;
+			if (atMs > _poses[i].AtMs) continue;
+			var (a, b) = (_poses[i - 1], _poses[i]);
+			var f = (atMs - a.AtMs) / (double)Math.Max(1, b.AtMs - a.AtMs);
+			return (a.X + (b.X - a.X) * f, a.Y + (b.Y - a.Y) * f);
 		}
-		Coasting = true;
-		_wx.Predict(dt);
-		_wy.Predict(dt);
-		if (Math.Abs(_lastImageX) > _t.EdgeOffset) return new PtzSpeed(Math.Sign(_lastImageX) * _t.SearchSpeed, 0);
-		var (nowX, _) = Travel(nowMs);
-		return new PtzSpeed(Axis(_wx, _t.GainX * nowX, _t.GainX, _t.DeadZoneX, ref _engagedX), 0);
+		return (_poses[^1].X, _poses[^1].Y);
 	}
 
-	PtzSpeed Desired(TrackState target, long nowMs, double dt)
+	public PtzRate Step(IReadOnlyList<TrackState> tracks, long nowMs)
 	{
-		var lagMs = (long)(_t.LagS * 1000);
-		var (seenX, seenY) = Travel(nowMs - lagMs);
-		var (nowX, nowY) = Travel(nowMs);
-		var aimY = target.Box.Y + target.Box.H * 0.3;
-		var worldX = target.Box.Cx - 0.5 + _t.GainX * seenX;
-		var worldY = aimY - _t.AimY + _t.GainY * seenY;
-		if (_wx is null || _wy is null || (_targetId != target.Id && Math.Abs(worldX - _wx.Position) > _t.ReacquireDistance))
+		lock (_lock)
 		{
-			_targetId = target.Id;
-			_wx = new KalmanAxis(worldX, _t.WorldNoise, 0.0004);
-			_wy = new KalmanAxis(worldY, _t.WorldNoise, 0.0004);
-			_seenMs = -1;
-		}
-		_wx.Predict(dt);
-		_wy.Predict(dt);
-		_targetId = target.Id;
-		if (target.SeenNow && target.LastSeenMs != _seenMs)
-		{
-			_seenMs = target.LastSeenMs;
-			_lastSeenAtMs = nowMs;
-			LastTargetMs = nowMs;
-			_lastImageX = target.Box.Cx - 0.5;
-			_wx.Update(worldX);
-			_wy.Update(worldY);
-		}
-		var x = Axis(_wx, _t.GainX * nowX, _t.GainX, _t.DeadZoneX, ref _engagedX);
-		var y = target.Box.H > _t.TiltBelowHeight ? 0 : Axis(_wy, _t.GainY * nowY, _t.GainY, _t.DeadZoneY, ref _engagedY);
-		return new PtzSpeed(x, y);
-	}
-
-	double Axis(KalmanAxis world, double viewNow, double gain, double deadZone, ref bool engaged)
-	{
-		var walking = Math.Abs(world.Velocity) >= gain * _t.MinSpeed;
-		var speed = walking ? Math.Clamp(world.Velocity, -_t.MaxSpeed * gain * 1.5, _t.MaxSpeed * gain * 1.5) : 0;
-		var ahead = world.Position + speed * (_t.LagS + _t.HorizonS) - viewNow;
-		if (!engaged && (Math.Abs(ahead) > deadZone || walking)) engaged = true;
-		else if (engaged && Math.Abs(ahead) < deadZone / 2 && !walking) engaged = false;
-		if (!engaged) return 0;
-		var wanted = (speed + ahead / _t.SettleS) / gain;
-		var command = Math.Clamp(wanted, -_t.MaxSpeed, _t.MaxSpeed);
-		if (Math.Abs(command) < _t.MinSpeed / 2) return 0;
-		return Math.Abs(command) < _t.MinSpeed ? Math.Sign(command) * _t.MinSpeed : command;
-	}
-
-	(double X, double Y) Travel(long untilMs)
-	{
-		double x = _base.X, y = _base.Y;
-		var cursor = _base.AtMs;
-		var current = PtzSpeed.Zero;
-		foreach (var (at, speed) in _sent)
-		{
-			if (at > untilMs) break;
-			if (at > cursor)
+			if (_geometry is not { } g || PoseAt(nowMs) is not { } cam) return Rate = PtzRate.Zero;
+			var dt = _lastStepMs < 0 ? 0.1 : Math.Clamp((nowMs - _lastStepMs) / 1000.0, 0.02, 0.5);
+			_lastStepMs = nowMs;
+			var lagS = g.LagS + LagOffsets[_best];
+			var lagMs = (long)(lagS * 1000);
+			var target = Pick(tracks, g, nowMs - lagMs);
+			if (target is not null && target.SeenNow && target.LastSeenMs != _seenStamp && PoseAt(nowMs - lagMs) is { } then)
 			{
-				x += current.X * (at - cursor) / 1000.0;
-				y += current.Y * (at - cursor) / 1000.0;
-				cursor = at;
+				_seenStamp = target.LastSeenMs;
+				var x = then.X + (target.Box.Cx - 0.5) / g.ViewPerX;
+				var y = then.Y + (target.Box.Y + target.Box.H * AimInBox - AimInImage) / g.ViewPerY;
+				var capturedMs = nowMs - lagMs;
+				var fresh = _person is null || _targetId != target.Id && Math.Abs(_person.Position - x) > ReacquireWidths / Math.Abs(g.ViewPerX);
+				var elapsed = Math.Clamp((capturedMs - _measuredMs) / 1000.0, 0.01, 1);
+				var turning = g.TopRateX > 0 && PoseAt(capturedMs + 100) is { } after && PoseAt(capturedMs - 100) is { } before ? Math.Abs(after.X - before.X) / 0.2 : 0;
+				var doubt = turning * PoseDoubtS * (turning * PoseDoubtS);
+				for (var k = 0; k < LagOffsets.Length; k++)
+				{
+					var at = PoseAt(nowMs - lagMs - (long)((LagOffsets[k] - LagOffsets[_best]) * 1000)) ?? then;
+					var seen = at.X + (target.Box.Cx - 0.5) / g.ViewPerX;
+					if (fresh || _guesses[k] is not { } guess)
+					{
+						_guesses[k] = new KalmanAxis(seen, 0.08, 0.0004);
+						continue;
+					}
+					guess.Predict(elapsed);
+					var miss = seen - guess.Position;
+					_misses[k] = _misses[k] * 0.985 + miss * miss;
+					guess.Update(seen, doubt);
+				}
+				var smoothest = Array.IndexOf(_misses, _misses.Min());
+				if (!fresh && _misses[smoothest] < _misses[_best] * 0.7 && _misses[_best] > 1e-6) _best = smoothest;
+				_person = _guesses[_best];
+				var off = _zone is null ? 0 : Math.Clamp(y - _zone.Route(x), -MaxOffTheRoute, MaxOffTheRoute);
+				if (fresh)
+				{
+					_firstMs = capturedMs;
+					_offRoute = off;
+					_freeY = y;
+				}
+				else
+				{
+					_offRoute += 0.15 * (off - _offRoute);
+					_freeY += 0.3 * (y - _freeY);
+				}
+				_targetId = target.Id;
+				_measuredMs = capturedMs;
 			}
-			current = speed;
+			if (_person is null || _measuredMs < 0)
+			{
+				Coasting = false;
+				Trace = new FollowTrace(nowMs, "idle", cam.X, cam.Y, null, 0, 0, 0, 0, cam.X, cam.Y, 0, 0, lagS);
+				return Rate = Slow(PtzRate.Zero, dt);
+			}
+			var sinceS = (nowMs - lagMs - _measuredMs) / 1000.0;
+			var lost = sinceS > 0.6;
+			if (lost && sinceS > CoastS)
+			{
+				Drop();
+				Coasting = false;
+				return Rate = Slow(PtzRate.Zero, dt);
+			}
+			var walk = Math.Clamp(_person.Velocity, -MaxPersonRate, MaxPersonRate);
+			var steady = (_measuredMs - _firstMs) / 1000.0 >= MinTrackS && Math.Abs(walk) >= MinRate;
+			Coasting = lost && steady;
+			if (!steady) walk = 0;
+			var ahead = _person.Position + walk * (sinceS + lagS + g.ActuationS);
+			var aimX = _zone is null ? ahead : Math.Clamp(ahead, _zone.MinX, _zone.MaxX);
+			var aimY = _zone is null ? _freeY : Math.Clamp(_zone.Route(ahead) + _offRoute, _zone.MinY, _zone.MaxY);
+			var errorX = aimX - cam.X;
+			var errorY = aimY - cam.Y;
+			var deadX = DeadX / Math.Abs(g.ViewPerX);
+			var deadY = DeadY / Math.Abs(g.ViewPerY);
+			if (!_movingX && (Math.Abs(errorX) > deadX || walk != 0)) _movingX = true;
+			else if (_movingX && Math.Abs(errorX) < deadX / 2 && walk == 0) _movingX = false;
+			if (!_movingY && Math.Abs(errorY) > deadY) _movingY = true;
+			else if (_movingY && Math.Abs(errorY) < deadY / 2) _movingY = false;
+			var wanted = new PtzRate(
+				_movingX ? Math.Clamp(walk + GainX * errorX, -g.MaxRateX * 0.9, g.MaxRateX * 0.9) : 0,
+				_movingY ? Math.Clamp(GainY * errorY, -g.MaxRateY * 0.7, g.MaxRateY * 0.7) : 0);
+			if (_zone is not null)
+			{
+				var (lx, ly) = _zone.Limit(cam.X, cam.Y, wanted.X, wanted.Y, 0.35);
+				wanted = new PtzRate(lx, ly);
+			}
+			Rate = Slow(wanted, dt);
+			Trace = new FollowTrace(nowMs, Coasting ? "coast" : lost ? "hold" : "track", cam.X, cam.Y, _targetId, target?.Box.Cx ?? 0, target?.Box.Cy ?? 0, _person.Position, _person.Velocity, aimX, aimY, Rate.X, Rate.Y, lagS);
+			return Rate;
 		}
-		if (untilMs > cursor)
-		{
-			x += current.X * (untilMs - cursor) / 1000.0;
-			y += current.Y * (untilMs - cursor) / 1000.0;
-		}
-		return (x, y);
 	}
 
-	void Prune(long beforeMs)
+	PtzRate Slow(PtzRate wanted, double dt)
 	{
-		while (_sent.Count > 1 && _sent[1].AtMs < beforeMs)
-		{
-			var (x, y) = Travel(_sent[1].AtMs);
-			_base = (_sent[1].AtMs, x, y);
-			_sent.RemoveAt(0);
-		}
+		var x = Rate.X + Math.Clamp(wanted.X - Rate.X, -AccelX * dt, AccelX * dt);
+		var y = Rate.Y + Math.Clamp(wanted.Y - Rate.Y, -AccelY * dt, AccelY * dt);
+		if (wanted.X == 0 && Math.Abs(x) < 0.02) x = 0;
+		if (wanted.Y == 0 && Math.Abs(y) < 0.02) y = 0;
+		return new PtzRate(x, y);
 	}
-}
 
-public static class PtzOrientation
-{
-	public static (double X, double Y) ToCamera(double x, double y, int rotation) => rotation == 180 ? (-x, -y) : (x, y);
+	TrackState? Pick(IReadOnlyList<TrackState> tracks, FollowGeometry g, long capturedMs)
+	{
+		if (_targetId is { } id && tracks.FirstOrDefault(t => t.Id == id) is { } same) return same;
+		var seen = tracks.Where(t => t.SeenNow).ToList();
+		if (_person is not null && _measuredMs >= 0 && PoseAt(capturedMs) is { } then)
+		{
+			var expected = _person.Position + Math.Clamp(_person.Velocity, -MaxPersonRate, MaxPersonRate) * (capturedMs - _measuredMs) / 1000.0;
+			var near = seen
+				.Select(t => (Track: t, Distance: Math.Abs(then.X + (t.Box.Cx - 0.5) / g.ViewPerX - expected) * Math.Abs(g.ViewPerX)))
+				.Where(c => c.Distance <= ReacquireWidths)
+				.OrderBy(c => c.Distance)
+				.FirstOrDefault();
+			return near.Track;
+		}
+		return seen.OrderByDescending(t => t.Box.Area * t.Score).FirstOrDefault();
+	}
 }

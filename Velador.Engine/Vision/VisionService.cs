@@ -1054,8 +1054,9 @@ public sealed class VisionService(
 			var (gray, atMs) = await GrayAsync(v, ct);
 			if (movedMs is null && atMs - startMs > MaxLagMs) break;
 			if (movedMs is not null && atMs >= steadyFromMs + SampleMs) break;
-			var (dx, dy) = GlobalMotion.Shift(previous.Gray, gray, GrayWidth, GrayHeight, 0.15);
-			var d = horizontal ? dx : dy;
+			// Without the band the printed hour and logo dominate at night and every shift reads 0.
+			var (dx, dy) = GlobalMotion.Shift(Band(previous.Gray), Band(gray), GrayWidth, BandRows, 0.15);
+			var d = horizontal ? dx : dy * BandRows / GrayHeight;
 			if (movedMs is null && atMs - startMs > 300 && Math.Abs(d) > 0.004)
 			{
 				movedMs = atMs;
